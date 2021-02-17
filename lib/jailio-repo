@@ -1,0 +1,10 @@
+#!/bin/sh
+
+dataset::list(){
+  local _format="%-15s %-11s %-25s %s"
+  local _name _path
+
+  printf "${_format}\n" "NAME" "PATH"
+}
+
+

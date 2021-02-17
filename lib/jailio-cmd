@@ -1,0 +1,81 @@
+#!/bin/sh
+
+CMD_VALID_LIST="create,console,exec,init,list,snap,start,startall,stop,stopall,switch,version"
+
+cmd::parse_info(){
+    local _cmd
+
+    cmd::find "_cmd" "$1" "${CMD_VALID_LIST}"
+
+    case "${_cmd}" in
+        version) util::version && exit ;;
+        usage)   util::usage ;;
+    esac
+}
+
+cmd::parse(){
+    local _cmd
+
+    # try to find a matching command
+    cmd::find "_cmd" "$1" "${CMD_VALID_LIST}" || util::usage
+    shift
+
+    case "${_cmd}" in
+        create)      jail::create "$@"  ;;
+        console)     jail::console "$@" ;;
+        exec)        jail::exec "$@"    ;;
+        init)        init::jailconf     ;;
+        list)        jail::list         ;;
+        snap)        zfs::snapshot "$@" ;;
+        start)       jail::start "$@"   ;;
+        startall)    util::tbd ;;
+        stop)        jail::stop "$@"    ;;
+        stopall)     util::tbd ;;
+        switch)      cmd::parse_switch "$@" ;;
+        *)           util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
+    esac
+}
+
+cmd::parse_switch(){
+  local _cmd
+
+  cmd::find "_cmd" "$1" "list,info,create,add,remove" || util::usage
+  shift
+
+  case "${_cmd}" in
+    list)     switch::list ;;
+    info)     switch::info "$@" ;;
+    create)   switch::create "$@" ;;
+    add)      switch::add "$@" ;;
+    remove)   switch::remove "$@" ;;
+    *)        util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
+  esac
+}
+
+cmd::find(){
+    local _var="$1"
+    local _user_cmd="$2"
+    local _valid="$3"
+    local _opt _choice _found=""
+    local IFS=","
+
+    [ -n "${_user_cmd}" ] || util::err "no command specified"
+
+    for _opt in ${_valid}; do
+        # exact match?
+        if [ "${_user_cmd}" = "${_opt}" ]; then
+            setvar "${_var}" "${_opt}"
+            return 0
+        fi
+
+        if echo "${_opt}" | grep -iqs "^${_user_cmd}"; then
+           [ -n "${_found}" ] && util::err "ambiguous command '${_user_cmd}'"
+
+           _found=1
+           _choice="${_opt}"
+        fi
+    done
+
+    [ -z "${_found}" ] && return 1
+    setvar "${_var}" "${_choice}"
+}

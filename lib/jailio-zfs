@@ -1,0 +1,477 @@
+#!/bin/sh
+#-------------------------------------------------------------------------+
+# Copyright (C) 2016 Matt Churchyard (churchers@gmail.com)
+# All rights reserved
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted providing that the following conditions
+# are met:
+# 1. Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+# OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+# HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+# STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+# IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+# set us up for zfs use
+# we need the zfs dataset name for zfs commands, and the file system path
+# for bhyve. It's highly possible these will be different.
+# We ask user to specify the dataset name as "zfs:pool/dataset"
+# This can then be used for zfs commands, and we can retrieve the mountpoint
+# to find out the file path for bhyve
+#
+# This then overwrites $vm_dir with the file system path, so that the 
+# rest of vm-bhyve can work normally, regardless of whether we are in zfs mode
+# or not
+#
+# If zfs is enabled, the following global variables are set
+# VM_ZFS=1
+# VM_ZFS_DATASET={pool/dataset}
+#
+# @modifies VM_ZFS VM_ZFS_DATASET vm_dir
+#
+zfs::init(){
+
+    # check for zfs storage location
+    # user should specify "zfs:pool/dataset" if they want ZFS support
+    if [ "${jailio_dir%%:*}" = "zfs" ]; then
+
+        # check zfs running
+        kldstat -qm zfs >/dev/null 2>&1
+        [ $? -eq 0 ] || util::err "ZFS support requested but ZFS not available"
+
+        # global zfs details
+        JAILIO_ZFS="1"
+        JAILIO_ZFS_DATASET="${jailio_dir#*:}"
+
+        # update vm_dir
+        # this makes sure it exists, confirms it's mounted & gets correct path in one go
+        jailio_dir=$(mount | grep "^${JAILIO_ZFS_DATASET} " |cut -d' ' -f3)
+        [ -z "${jailio_dir}" ] && util::err "unable to locate mountpoint for ZFS dataset ${JAILIO_ZFS_DATASET}"
+    fi
+}
+
+# make a new dataset
+# this is always called when creating a new vm, but will do nothing
+#
+# @param string _name name of the dataset to create
+#
+zfs::make_dataset(){
+    local _name="$1"
+    local _opts="$2"
+
+    if [ -n "${_name}" -a "${JAIL_DS_ZFS}" = "1" ]; then
+        zfs::__format_options "_opts" "${_opts}"
+        zfs create ${_opts} "${_name}"
+        [ $? -eq 0 ] || util::err "failed to create new ZFS dataset ${_name}"
+    fi
+}
+
+# destroy a dataset
+#
+# @param string _name name of the dataset to destroy
+#
+zfs::destroy_dataset(){
+    local _name="$1"
+
+    if [ -n "${_name}" -a "${JAIL_DS_ZFS}" = "1" ]; then
+        zfs destroy -rf "${_name}" >/dev/null 2>&1
+        [ $? -eq 0 ] || util::err "failed to destroy ZFS dataset ${_name}"
+    fi
+}
+
+# format options for zfs commands
+# options are stored in configuration separated by a space
+# we need to replace that with -o
+#
+# @modifies $_val
+#
+zfs::__format_options(){
+    local _val="$1"
+    local _c_opts="$2"
+
+    if [ -n "${_c_opts}" ]; then
+        _c_opts=$(echo "${_c_opts}" |sed -e 's/\ / -o /')
+        _c_opts="-o ${_c_opts}"
+        setvar "${_val}" "${_c_opts}"
+        return 0
+    fi
+
+    setvar "${_val}" ""
+}
+
+# 'jailio snapshot'
+# create a snapshot of a jail
+# specify the snapshot name in zfs format jail@snap
+# if no snapshot name is specified, Y-m-d-H:M:S will be used
+#
+# @param flag (-f) force snapshot if jail is running
+# @param string _name the name of the jail to snapshot
+#
+zfs::snapshot(){
+    local _name _snap
+
+    #cmd::parse_args "$@"
+    shift $?
+    _name="$1"
+
+    # try to get snapshot name
+    # we support normal zfs syntax for this
+    echo "${_name}" | grep -qs "@"
+
+    if [ $? -eq 0 ]; then
+        _snap=${_name##*@}
+        _name=${_name%%@*}
+    fi
+
+    [ -z "${_name}" ] && util::usage
+    [ ! "${JAILIO_ZFS}" = "1" ] && util::err "cannot snapshot jails on non-zfs datastores"
+    [ -z "${_snap}" ] && _snap=$(date +"%Y-%m-%d-%H:%M:%S")
+
+    zfs snapshot -r ${JAILIO_ZFS_DATASET}/${_name}@${_snap}
+    [ $? -eq 0 ] || util::err "failed to create recursive snapshot of virtual machine"
+}
+
+# try to remove a snapshot
+#
+# @param string _name the jail name and snapshot (jail@snap)
+# @return true if successful
+#
+zfs::remove_snapshot(){
+    local _name="$1"
+    local _snap
+
+    # split name and snapshot
+    _snap=${_name##*@}
+    _name=${_name%%@*}
+
+    # try to load guest
+    datastore::get_jail "${_name}" || util::err "${_name} does not appear to be an existing jail"
+    [ ! "${JAIL_DS_ZFS}" = "1" ] && util::err "cannot snapshot jail on non-zfs datastores"
+
+    # remove
+    zfs destroy -r ${JAIL_DS_ZFS_DATASET}/${_name}@${_snap}
+    [ $? -eq 0 ] || util::err "failed to remove snapshot ${JAIL_DS_ZFS_DATASET}/${_name}@${_snap}"
+}
+
+# 'jailio rollback'
+# roll a jail back to a previous snapshot
+# we show zfs errors here as it will fail if the snapshot is not the most recent.
+# zfs will output an error mentioning to use '-r', and listing the snapshots
+# that will be deleted. makes sense to let user see this and just support 
+# that option directly
+#
+# @param flag (-r) force deletion of more recent snapshots
+# @param string _name name of the jail
+#
+zfs::rollback(){
+    local _name _snap _opt _force _fs _snap_exists
+
+    while getopts r _opt; do
+        case $_opt in
+            r) _force="-r" ;;
+            *) util::usage ;;
+        esac
+    done
+
+    shift $((OPTIND - 1))
+
+    _snap_exists=$(echo "${1}" | grep "@")
+    [ -z "${_snap_exists}" ] && util::err "a snapshot name must be provided in jail@snapshot format"
+
+    _name="${1%%@*}"
+    _snap="${1##*@}"
+
+    [ -z "${_name}" -o -z "${_snap}" ] && util::usage
+
+    datastore::get_jail "${_name}" || util::err "${_name} does not appear to be an existing jail"
+    [ ! "${JAIL_DS_ZFS}" = "1" ] && util::err "cannot rollback guests on non-zfs datastores"
+
+    jail::confirm_stopped "${_name}" || exit 1
+
+    # list all datasets and zvols under guest
+    zfs list -o name -rHt filesystem,volume ${JAIL_DS_ZFS_DATASET}/${_name} | \
+    while read _fs; do
+        zfs rollback ${_force} ${_fs}@${_snap}
+        [ $? -ne 0 ] && exit $?
+    done
+}
+
+# 'jail clone'
+# clone a jail
+# this makes a true zfs clone of the specified jail
+#
+# @param string _old the jail to clone
+# @param string _new name of the new jail
+#
+zfs::clone(){
+    local _old="$1"
+    local _name="$2"
+    local _fs _newfs _snap _snap_exists _fs_list _entry
+    local _num=0 _error=0
+    local _uuid=$(uuidgen)
+
+    # check args and make sure new guest doesn't already exist
+    [ -z "${_old}" -o -z "${_name}" ] && util::usage
+    datastore::get_jail "${_name}" && util::err "new guest already exists in ${JAIL_DS_PATH}/${_name}"
+
+    # try to get snapshot name
+    # we support normal zfs syntax for this
+    _snap_exists=$(echo "${_old}" | grep "@")
+
+    if [ -n "${_snap_exists}" ]; then
+        _snap=${_old##*@}
+        _old=${_old%%@*}
+    fi
+
+    # make sure old jail exists
+    datastore::get_jail "${_old}" || util::err "${_old} does not appear to be an existing jail"
+    [ ! "${JAIL_DS_ZFS}" = "1" ] && util::err "cannot clone guests on non-zfs datastores"
+
+    # get list of datasets to copy
+    _fs_list=$(zfs list -rHo name -t filesystem,volume "${JAIL_DS_ZFS_DATASET}/${_old}")
+    [ $? -eq 0 ] || util::err "unable to list datasets for ${JAIL_DS_ZFS_DATASET}/${_old}"
+
+    # generate a short uuid and create snapshot if no custom snap given
+    if [ -z "${_snap}" ]; then
+        jail::confirm_stopped "${_old}" || exit 1
+        _snap=$(echo "${_uuid}" |awk -F- '{print $1}')
+
+        zfs snapshot -r "${JAIL_DS_ZFS_DATASET}/${_old}@${_snap}"
+        [ $? -eq 0 ] || util::err "failed to create snapshot ${JAIL_DS_ZFS_DATASET}/${_old}@${_snap}"
+    else
+        for _fs in ${_fs_list}; do
+            zfs get creation "${_fs}@${_snap}" >/dev/null 2>&1
+            [ $? -eq 0 ] || util::err "snapshot ${_fs}@${_snap} doesn't seem to exist"
+        done
+    fi
+
+    # clone
+    for _fs in ${_fs_list}; do
+        _newfs=$(echo "${_fs}" | sed "s@${JAIL_DS_ZFS_DATASET}/${_old}@${JAIL_DS_ZFS_DATASET}/${_name}@")
+
+        zfs clone "${_fs}@${_snap}" "${_newfs}"
+        [ $? -eq 0 ] || util::err "error while cloning dataset ${_fs}@${_snap}"
+    done
+
+    #TODO update config
+    # update new guest files
+    #mv "${JAIL_DS_PATH}/${_name}/${_old}.conf" "${JAIL_DS_PATH}/${_name}/${_name}.conf" >/dev/null 2>&1
+    #if [ $? -ne 0 ]; then
+    #    echo "Unable to rename configuration file to ${_name}.conf"
+    #    echo "This will need to be renamed manually"
+    #    echo "Please also remove any uuid or mac address settings, these will be regenerated automatically"
+    #    exit 1
+    #fi
+
+    # generalise the clone
+    jail::generalise "${_name}"
+}
+
+# 'vm image create'
+# create an image of a vm
+# this creates an archive of the specified guest, stored in $vm_dir/images
+# we use a uuid just in case we want to provide the ability to share images at any point
+#
+# @param optional string (-d) description of the image
+# @param string _name name of guest to take image of
+#
+#TODO create images
+zfs::image_create(){
+    local _name _opt _desc
+    local _uuid _snap _date _no_compress _filename
+    local _compress _decompress
+
+    while getopts d:u _opt ; do
+        case $_opt in
+            d) _desc=${OPTARG} ;;
+            u) _no_compress="1" ;;
+            *) util::usage ;;
+        esac
+    done
+
+    shift $((OPTIND - 1))
+    _name=$1
+    _uuid=$(uuidgen)
+    _snap=${_uuid%%-*}
+    _date=$(date)
+
+    [ -z "${_desc}" ] && _desc="No description provided"
+
+    datastore::get_guest "${_name}" || util::err "${_name} does not appear to be a valid virtual machine"
+    [ -z "${VM_ZFS}" -o -z "${VM_DS_ZFS}" ] && util::err "this command is only supported on zfs datastores"
+
+    # create the image dataset if we don't have it
+    if [ ! -e "${vm_dir}/images" ]; then
+        zfs create "${VM_ZFS_DATASET}/images" >/dev/null 2>&1
+        [ $? -eq 0 ] || util::err "failed to create image store ${VM_ZFS_DATASET}/images"
+    fi
+
+    # try to snapshot
+    zfs snapshot -r "${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}" >/dev/null 2>&1
+    [ $? -eq 0 ] || util::err "failed to create snapshot of source dataset ${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}"
+
+    # copy source
+    if [ -n "${_no_compress}" ]; then
+        _filename="${_uuid}.zfs"
+
+        echo "Creating guest image, this may take some time..."
+        zfs send -R "${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}" > "${vm_dir}/images/${_filename}"
+    else
+        _filename="${_uuid}.zfs.z"
+
+        config::core::get "_compress" "compress"
+        config::core::get "_decompress" "decompress"
+
+        # use defaults if either of these settings are missing
+        # no point using user defined compress if we don't know how to decompress
+        if [ "${_compress}" = "" -o "${_decompress}" = "" ]; then
+            _compress="xz -T0"
+            _decompress="xz -d"
+        fi
+
+        echo "Creating a compressed image, this may take some time..."
+        zfs send -R "${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}" | ${_compress} > "${vm_dir}/images/${_filename}"
+    fi
+
+    [ $? -ne 0 ] && exit 1
+
+    # done with the source snapshot
+    zfs destroy -r ${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}
+
+    # create a description file
+    sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" "description=${_desc}" >/dev/null 2>&1
+    sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" "created=${_date}" >/dev/null 2>&1
+    sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" "name=${_name}" >/dev/null 2>&1
+    sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" "filename=${_filename}" >/dev/null 2>&1
+    sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" "decompress=${_decompress}" >/dev/null 2>&1
+
+    echo "Image of ${_name} created with UUID ${_uuid}"
+}
+
+# 'vm image provision'
+# create a new vm from an image
+#
+# @param string _uuid the uuid of the image to use
+# @param string _name name of the new guest
+#
+zfs::image_provision(){
+    local _uuid _name _file _oldname _entry _num=0 _type
+    local _datastore="default" _decompress
+
+    while getopts d: _opt ; do
+        case $_opt in
+            d) _datastore="${OPTARG}" ;;
+            *) util::usage ;;
+        esac
+    done
+
+    shift $((OPTIND - 1))
+    _uuid="$1"
+    _name="$2"
+
+    [ -z "${_uuid}" -o -z "${_name}" ] && util::usage
+    [ ! -e "${vm_dir}/images/${_uuid}.manifest" ] && util::err "unable to locate image with uuid ${_uuid}"
+    datastore::get_guest "${_name}" && util::err "new guest already exists in ${VM_DS_PATH}/${_name}"
+
+    # get the data filename
+    _file=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" filename)
+    _type=${_file##*.}
+
+    _oldname=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" name)
+    [ -z "${_file}" -o -z "${_oldname}" ] && util::err "unable to locate required details from the specified image manifest"
+    [ ! -e "${vm_dir}/images/${_file}" ] && util::err "image data file does not exist: ${vm_dir}/images/${_file}"
+
+    # get the datastore to create on
+    datastore::get "${_datastore}" || util::err "unable to locate datastore '${_datastore}'"
+
+    # try to recieve
+    echo "Unpacking guest image, this may take some time..."
+
+    # check format of image
+    case ${_type} in
+        zfs) cat "${vm_dir}/images/${_file}" | zfs recv "${JAILIO_DS_ZFS_DATASET}/${_name}" ;;
+        xz)  xz -dc "${vm_dir}/images/${_file}" 2>/dev/null | zfs recv "${JAILIO_DS_ZFS_DATASET}/${_name}" ;;
+        z)   _decompress=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" decompress)
+             [ -z "${_decompress}" ] && util::err "unable to locate decompression configuration"
+             ${_decompress} "${vm_dir}/images/${_file}" 2>/dev/null | zfs recv "${JAILIO_DS_ZFS_DATASET}/${_name}" ;;
+        *)   util::err "unsupported guest image type - '${_type}'" ;;
+    esac
+
+    # error unpacking?
+    [ $? -eq 0 ] || util::err "errors occured while trying to unpackage the image file"
+
+    # remove the original snapshot
+    zfs destroy -r "${JAILIO_DS_ZFS_DATASET}/${_name}@${_uuid%%-*}" >/dev/null 2>&1
+
+    # rename the guest configuration file
+    mv "${VM_DS_PATH}/${_name}/${_oldname}.conf" "${VM_DS_PATH}/${_name}/${_name}.conf" >/dev/null 2>&1
+    [ $? -eq 0 ] || util::err "unpackaged image but unable to update guest configuration file"
+
+    # update mac addresses and create a new uuid
+    _uuid=$(uuidgen)
+
+    # remove unique settings from new image
+    vm::generalise "${_name}"
+
+    # vm may be started when 'vm image create' is executed
+    rm -f "${VM_DS_PATH}/${_name}/run.lock" >/dev/null 2>&1
+    rm -f "${VM_DS_PATH}/${_name}/vm-bhyve.log*" >/dev/null 2>&1
+}
+
+# 'jail image list'
+# list available images
+#
+zfs::image_list(){
+    local _file _uuid _ext
+    local _format="%s^%s^%s^%s\n"
+
+    {
+        printf "${_format}" "UUID" "NAME" "CREATED" "DESCRIPTION"
+
+        [ ! -e "${vm_dir}/images" ] && exit
+
+        ls -1 ${vm_dir}/images/ | \
+        while read _file; do
+            if [ "${_file##*.}" = "manifest" ]; then
+                _uuid=${_file%.*}
+                _desc=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" description)
+                _created=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" created)
+                _name=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" name)
+
+                printf "${_format}" "${_uuid}" "${_name}" "${_created}" "${_desc}"
+            fi
+        done
+    } | column -ts^
+}
+
+# 'jail image destroy'
+# destroy an image
+#
+# @param string _uuid the uuid of the image
+#
+zfs::image_destroy(){
+    local _uuid="$1"
+    local _file
+
+    [ -z "${_uuid}" ] && util::usage
+    [ ! -e "${vm_dir}/images/${_uuid}.manifest" ] && util::err "unable to locate image with uuid ${_uuid}"
+
+    # get the image filename
+    _file=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" filename)
+    [ -z "${_file}" ] && util::err "unable to locate filename for the specified image"
+
+    unlink "${vm_dir}/images/${_uuid}.manifest"
+    unlink "${vm_dir}/images/${_file}"
+}

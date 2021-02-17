@@ -1,0 +1,40 @@
+#!/bin/sh
+
+util::err() {
+    echo "${0}: ERROR: $1" >&2
+    exit 1
+}
+
+util::tbd() {
+    echo "This feature is not implemented yet"
+    exit
+}
+
+util::version(){
+    echo "jailio: The final word in container orchestration v${VERSION} (rev. ${VERSION_INT})"
+}
+
+
+
+util::usage() {
+    util::version
+    cat << EOT
+Usage: jailio ...
+    version
+    init
+    switch list
+    switch create [-i interface] [-m mtu] [-a add/pref] [-t type] name
+
+    create [-t type] [-r version] [-s snap] [-b switch] [--silent] [-d domain] [-a addr] [name]
+
+    list
+    start [name ...]
+    stop [-f] [name ...]
+    exec -f /path/to/script.sh name
+    console name
+
+    snap jail[@name]
+
+EOT
+    exit 1
+}
