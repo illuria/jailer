@@ -23,9 +23,9 @@ Usage: jailio ...
     version
     init
     switch list
-    switch create [-i interface] [-m mtu] [-a add/pref] [-t type] name
+    switch create [-m mtu] [-a add/pref] [-t type] name
 
-    create [-t type] [-r version] [-s snap] [-b switch] [--silent] [-d domain] [-a addr] [name]
+    create [-r version] [-s snap] [-b switch] [--silent] [-d domain] [-a addr] [name]
 
     list
     start [name ...]
