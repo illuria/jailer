@@ -4,6 +4,7 @@
 jail::get_next_id(){
   expr $(
     ( grep -s '$id' /etc/jail.conf.d/* || echo '$id = "0";' ) |
+    sort -h |
     tail -1 |
     awk -F '[="]' '{print $3}'
   ) + 1
@@ -23,13 +24,14 @@ jail::extract(){
   local _name=$1 _version=$2
   mkdir -p ${jailio_dir}/.dist-files
   [ -z ${FreeBSD_mirror} ] && FreeBSD_mirror="https://download.freebsd.org/ftp"
-  [ -e ${jailio_dir}/.dist-files/base-${_version}.txz ] && checksum ${_version}  || fetch -o ${jailio_dir}/.dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/base.txz && checksum ${_version}
+  ( [ -e ${jailio_dir}/.dist-files/base-${_version}.txz ] && checksum ${_version} ) ||
+  ( fetch -o ${jailio_dir}/.dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/base.txz && checksum ${_version} )
   tar -xf ${jailio_dir}/.dist-files/base-${_version}.txz -C ${jailio_dir}/${_name}/
 }
 
 checksum(){
   local _version=$1
-  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/.dist-files/base-${_version}.txz
+  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/.dist-files/base-${_version}.txz > /dev/null
 }
 
 
@@ -40,15 +42,15 @@ jail::create(){
   local _silent
   local _gw _netmask
 
-  while getopts :a:b:d:h:ns:v: _opt; do
+  while getopts :a:b:d:h:ns:r: _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _switch="${OPTARG}" ;;
       d) _domain="${OPTARG}" ;;
       h) _hooks="${OPTARG}" ;;
       n) _silent="yes" ;;
+      r) _version="${OPTARG}" ;;
       s) _snap="${OPTARG}" ;;
-      v) _version="${OPTARG}" ;;
       *) util::usage ;;
     esac
   done
@@ -59,7 +61,6 @@ jail::create(){
   _path=${jailio_dir}/${_name}
   _gw=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $2}')
   _netmask=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $4}')
-  echo "id is ${_id}"
   cat << EOF >> /etc/jail.conf.d/${_name}.conf
 # vim: set syntax=sh:
 exec.clean;
@@ -99,9 +100,9 @@ EOF
 
 
   [ ! -z ${_snap} ]   && zfs clone ${JAILIO_ZFS_DATASET}/${_snap} ${JAILIO_ZFS_DATASET}/${_name} || ( zfs create ${JAILIO_ZFS_DATASET}/${_name} && jail::extract ${_name} ${_version} )
-  [ ! -z ${_silent} ] && sysrc -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss" clear_tmp_enable="YES"
+  [ ! -z ${_silent} ] && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss" clear_tmp_enable="YES"
 
-  sysrc jail_list+="${_name}"
+  sysrc -q jail_list+="${_name}"
   jail::start ${_name}
 }
 
