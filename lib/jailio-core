@@ -1,6 +1,20 @@
 #!/bin/sh
 
 
+jail::list(){
+  _format="%s^%s^%s\n"
+  {
+    printf "${_format}" "JID" "HOSTNAME" "IPv4"
+    for _j in $(jls name);
+    do
+      _hostname=$(jexec ${_j} hostname)
+      _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair) | awk '/inet / {print $2}')
+      printf "${_format}" "${_j}" "${_hostname}" "${_ipaddr}"
+    done
+  } | column -ts^
+}
+
+
 jail::get_next_id(){
   expr $(
     ( grep -s '$id' /etc/jail.conf.d/* || echo '$id = "0";' ) |
@@ -20,25 +34,42 @@ jail::stop(){
   jail -f /etc/jail.conf.d/${_name}.conf -r ${_name}
 }
 
+jail::destroy(){
+  local _name="$1"
+  jail::stop ${_name}
+  zfs destroy ${JAILIO_ZFS_DATASET}/${_name}@base &&
+  zfs destroy ${JAILIO_ZFS_DATASET}/${_name} &&
+  rm /etc/jail.conf.d/${_name}.conf &&
+  sysrc jail_list-="${_name}"
+}
+
 jail::extract(){
-  local _name=$1 _version=$2
-  mkdir -p ${jailio_dir}/.dist-files
+  local version=$1
+  mkdir -p ${jailio_dir}/bootstrap/dist-files
   [ -z ${FreeBSD_mirror} ] && FreeBSD_mirror="https://download.freebsd.org/ftp"
-  ( [ -e ${jailio_dir}/.dist-files/base-${_version}.txz ] && checksum ${_version} ) ||
-  ( fetch -o ${jailio_dir}/.dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/base.txz && checksum ${_version} )
-  tar -xf ${jailio_dir}/.dist-files/base-${_version}.txz -C ${jailio_dir}/${_name}/
+  ( [ -e ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ] && jail::_checksum ${_version} ) ||
+  ( fetch -o ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/base.txz && jail::_checksum ${_version} )
+  tar -xf ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailio_dir}/bootstrap/${_version}/
 }
 
-checksum(){
+jail::_checksum(){
   local _version=$1
-  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/.dist-files/base-${_version}.txz > /dev/null
+  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null
 }
 
+
+jail::bootstrap(){
+  local _version="${1}"
+
+  zfs create -p ${JAILIO_ZFS_DATASET}/bootstrap/${_version}
+  jail::extract ${_version}
+  zfs snap ${JAILIO_ZFS_DATASET}/bootstrap/${_version}@base
+}
 
 jail::create(){
   local _name _id _path
-  local _version _snap
-  local _addr _switch _domain
+  local _version=$(uname -r) _snap
+  local _addr _switch _domain=$(hostname)
   local _silent
   local _gw _netmask
 
@@ -61,7 +92,7 @@ jail::create(){
   _path=${jailio_dir}/${_name}
   _gw=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $2}')
   _netmask=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $4}')
-  cat << EOF >> /etc/jail.conf.d/${_name}.conf
+  cat << EOF > /etc/jail.conf.d/${_name}.conf
 # vim: set syntax=sh:
 exec.clean;
 allow.raw_sockets;
@@ -98,8 +129,7 @@ ${_name} {
 }
 EOF
 
-
-  [ ! -z ${_snap} ]   && zfs clone ${JAILIO_ZFS_DATASET}/${_snap} ${JAILIO_ZFS_DATASET}/${_name} || ( zfs create ${JAILIO_ZFS_DATASET}/${_name} && jail::extract ${_name} ${_version} )
+  [ ! -z ${_snap} ]   && zfs clone ${JAILIO_ZFS_DATASET}/${_snap} ${JAILIO_ZFS_DATASET}/${_name} || ( zfs send ${JAILIO_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILIO_ZFS_DATASET}/${_name} )
   [ ! -z ${_silent} ] && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss" clear_tmp_enable="YES"
 
   sysrc -q jail_list+="${_name}"

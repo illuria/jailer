@@ -25,11 +25,15 @@ Usage: jailio ...
     switch list
     switch create [-m mtu] [-a add/pref] [-t type] name
 
-    create [-r version] [-s snap] [-b switch] [--silent] [-d domain] [-a addr] [name]
+    bootstrap version
+
+    create [-r version] [-s snap] [-b switch] [-n|--no-noise] [-d domain] [-a addr] name
+    destroy name
 
     list
     start [name ...]
     stop [-f] [name ...]
+
     exec -f /path/to/script.sh name
     console name
 

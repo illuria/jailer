@@ -11,7 +11,7 @@ switch::list(){
     if  ! ifconfig ${_bridge} > /dev/null  ; then
       service netif start ${_bridge} 2>&1 > /dev/null ;
     fi
-    _inet=$(ifconfig -f inet:cidr bridge0 | awk '/inet/ {print $2}')
+    _inet=$(ifconfig -f inet:cidr ${_bridge} | awk '/inet/ {print $2}')
     _desc=$(ifconfig ${_bridge} | sed -n 's/\tdescription: \(\.*\)/\1/p')
     printf "${_format}" "${_bridge}" "${_desc}" "${_inet}"
   done

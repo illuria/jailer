@@ -5,10 +5,11 @@ VERSION_INT=00100
 VERSION_BSD=$(uname -K)
 PATH=${PATH}:/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin
 
+cmd::parse_info "$@"
+
 . /etc/rc.subr
 load_rc_config "jailio"
 
-cmd::parse_info "$@"
 
 [ ! -d "/etc/jail.conf.d" ] && init::jailconf && mkdir /etc/jail.conf.d
 [ ! -d "/var/log/jail" ]    && mkdir /var/log/jail

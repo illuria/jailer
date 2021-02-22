@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="create,console,exec,init,list,snap,start,startall,stop,stopall,switch,version"
+CMD_VALID_LIST="bootstrap,create,console,destroy,exec,init,list,snap,start,startall,stop,stopall,switch,version"
 
 cmd::parse_info(){
     local _cmd
@@ -21,15 +21,17 @@ cmd::parse(){
     shift
 
     case "${_cmd}" in
-        create)      jail::create "$@"  ;;
-        console)     jail::console "$@" ;;
-        exec)        jail::exec "$@"    ;;
-        init)        init::jailconf     ;;
-        list)        jail::list         ;;
-        snap)        zfs::snapshot "$@" ;;
-        start)       jail::start "$@"   ;;
+        bootstrap)   jail::bootstrap "$@" ;;
+        create)      jail::create "$@"    ;;
+        console)     jail::console "$@"   ;;
+        destroy)     jail::destroy "$@"   ;;
+        exec)        jail::exec "$@"      ;;
+        init)        init::jailconf       ;;
+        list)        jail::list           ;;
+        snap)        zfs::snapshot "$@"   ;;
+        start)       jail::start "$@"     ;;
         startall)    util::tbd ;;
-        stop)        jail::stop "$@"    ;;
+        stop)        jail::stop "$@"      ;;
         stopall)     util::tbd ;;
         switch)      cmd::parse_switch "$@" ;;
         *)           util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
