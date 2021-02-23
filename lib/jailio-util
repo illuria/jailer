@@ -25,7 +25,7 @@ Usage: jailio ...
     switch list
     switch create [-m mtu] [-a add/pref] [-t type] name
 
-    bootstrap version
+    bootstrap [version]
 
     create [-r version] [-s snap] [-b switch] [-n|--no-noise] [-d domain] [-a addr] name
     destroy name

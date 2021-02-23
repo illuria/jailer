@@ -59,6 +59,8 @@ jail::_checksum(){
 
 
 jail::bootstrap(){
+  [ "$#" -eq "0" ] && zfs list -t snap -Ho name -r ${JAILIO_ZFS_DATASET}/bootstrap | sed -e 's/^zroot\/jails\/bootstrap\///' -e 's/@base$//' && exit 0
+
   local _version="${1}"
 
   zfs create -p ${JAILIO_ZFS_DATASET}/bootstrap/${_version}
