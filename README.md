@@ -29,6 +29,13 @@ sysrc jail_enable="YES"
 
 ## Usage
 
+Jailio uses the `jail.conf.d` patch, to patch your system run
+```
+jailio init
+```
+Usually jailio will do this automatically at the first run
+
+
 First you will need to create a switch
 ```
 jailio switch create -a 192.168.100.1/24 public
