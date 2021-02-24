@@ -71,7 +71,7 @@ jail::bootstrap(){
 jail::create(){
   local _name _id _path
   local _version=$(uname -r) _snap
-  local _addr _switch _domain=$(hostname)
+  local _addr _switch="bridge0" _domain=$(hostname)
   local _silent
   local _gw _netmask
 
@@ -89,7 +89,7 @@ jail::create(){
   done
   shift $((OPTIND - 1))
 
-  _name="$1"
+  _name="${1:-$(uuidgen)}"
   _id=$(jail::get_next_id)
   _path=${jailio_dir}/${_name}
   _gw=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $2}')

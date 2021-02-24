@@ -1,23 +1,21 @@
 #!/bin/sh
 
 util::err() {
-    echo "${0}: ERROR: $1" >&2
-    exit 1
+  echo "${0}: ERROR: $1" >&2
+  exit 1
 }
 
 util::tbd() {
-    echo "This feature is not implemented yet"
-    exit
+  echo "This feature is not implemented yet"
+  exit 1
 }
 
 util::version(){
-    echo "jailio: The final word in container orchestration v${VERSION} (rev. ${VERSION_INT})"
+  printf "v${VERSION}\nr${VERSION_INT}\n"
 }
 
 
-
 util::usage() {
-    util::version
     cat << EOT
 Usage: jailio ...
     version

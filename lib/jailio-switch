@@ -34,7 +34,8 @@ switch::create(){
   shift $((OPTIND - 1))
   _name="$1"
   _ifname=$(ifconfig bridge create inet ${_addr} descr ${_name})
-  sysrc ifconfig_${_ifname}="inet ${_addr} descr ${_name}"
-  sysrc cloned_interfaces+="${_ifname}"
-  service netif start ${_ifname}
+  sysrc ifconfig_${_ifname}="inet ${_addr} descr ${_name}" 2>&1 > /dev/null
+  sysrc cloned_interfaces+="${_ifname}" 2>&1 > /dev/null
+  service netif start ${_ifname} 2>&1 > /dev/null
+  printf "${_ifname}\n"
 }
