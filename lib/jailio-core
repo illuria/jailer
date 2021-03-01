@@ -43,9 +43,9 @@ jail::destroy(){
   sysrc jail_list-="${_name}"
 
   while ! {
-    zfs destroy ${JAILIO_ZFS_DATASET}/${_name}@base
+    zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name}@base && zfs destroy ${JAILIO_ZFS_DATASET}/${_name}@base
     sleep 5
-    zfs destroy ${JAILIO_ZFS_DATASET}/${_name}
+    ( zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name} && zfs destroy ${JAILIO_ZFS_DATASET}/${_name} ) || echo "dataset does not exist"
   }
   do
     echo "ZFS busy, trying again"
