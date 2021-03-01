@@ -74,13 +74,15 @@ jail::create(){
   local _addr _switch="bridge0" _domain=$(hostname)
   local _silent
   local _gw _netmask
+  local _script _content
 
-  while getopts :a:b:d:h:ns:r: _opt; do
+  while getopts :a:b:c:d:f:ns:r: _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _switch="${OPTARG}" ;;
+      c) _content="${OPTARG}" ;;
       d) _domain="${OPTARG}" ;;
-      h) _hooks="${OPTARG}" ;;
+      f) _script="${OPTARG}" ;;
       n) _silent="yes" ;;
       r) _version="${OPTARG}" ;;
       s) _snap="${OPTARG}" ;;
@@ -131,11 +133,13 @@ ${_name} {
 }
 EOF
 
-  [ ! -z ${_snap} ]   && zfs clone ${JAILIO_ZFS_DATASET}/${_snap} ${JAILIO_ZFS_DATASET}/${_name} || ( zfs send ${JAILIO_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILIO_ZFS_DATASET}/${_name} )
-  [ ! -z ${_silent} ] && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss" clear_tmp_enable="YES"
+  [ ! -z ${_snap} ]    && zfs clone ${JAILIO_ZFS_DATASET}/${_snap} ${JAILIO_ZFS_DATASET}/${_name} || ( zfs send ${JAILIO_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILIO_ZFS_DATASET}/${_name} )
+  [ ! -z ${_silent} ]  && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss"
+  [ ! -z ${_content} ] && cp -a ${_content} ${_path}/tmp/
 
   sysrc -q jail_list+="${_name}"
   jail::start ${_name}
+  [ ! -z ${_script} ]  && jail::exec -f ${_script} ${_name}
 }
 
 jail::console() {

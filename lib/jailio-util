@@ -25,7 +25,7 @@ Usage: jailio ...
 
     bootstrap [version]
 
-    create [-r version] [-s snap] [-b switch] [-n|--no-noise] [-d domain] [-a addr] name
+    create [-r version] [-s snap] [-b switch] [-n|--no-noise] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
     destroy name
 
     list
