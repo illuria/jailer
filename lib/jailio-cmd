@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="bootstrap,create,console,destroy,exec,init,list,snap,start,startall,stop,stopall,switch,version"
+CMD_VALID_LIST="bootstrap,create,console,destroy,exec,init,list,snap,start,startall,stop,stopall,bridge,version"
 
 cmd::parse_info(){
     local _cmd
@@ -33,23 +33,23 @@ cmd::parse(){
         startall)    util::tbd ;;
         stop)        jail::stop "$@"      ;;
         stopall)     util::tbd ;;
-        switch)      cmd::parse_switch "$@" ;;
+        bridge)      cmd::parse_bridge "$@" ;;
         *)           util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
     esac
 }
 
-cmd::parse_switch(){
+cmd::parse_bridge(){
   local _cmd
 
   cmd::find "_cmd" "$1" "list,info,create,add,remove" || util::usage
   shift
 
   case "${_cmd}" in
-    list)     switch::list ;;
-    info)     switch::info "$@" ;;
-    create)   switch::create "$@" ;;
-    add)      switch::add "$@" ;;
-    remove)   switch::remove "$@" ;;
+    list)     bridge::list ;;
+    info)     bridge::info "$@" ;;
+    create)   bridge::create "$@" ;;
+    add)      bridge::add "$@" ;;
+    remove)   bridge::remove "$@" ;;
     *)        util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
   esac
 }

@@ -80,7 +80,7 @@ jail::bootstrap(){
 jail::create(){
   local _name _id _path
   local _version=$(uname -r) _snap
-  local _addr _switch="bridge0" _domain=$(hostname)
+  local _addr _bridge="bridge0" _domain=$(hostname)
   local _silent
   local _gw _netmask
   local _script _content
@@ -88,7 +88,7 @@ jail::create(){
   while getopts :a:b:c:d:f:ns:r: _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
-      b) _switch="${OPTARG}" ;;
+      b) _bridge="${OPTARG}" ;;
       c) _content="${OPTARG}" ;;
       d) _domain="${OPTARG}" ;;
       f) _script="${OPTARG}" ;;
@@ -103,8 +103,8 @@ jail::create(){
   _name="${1:-$(uuidgen)}"
   _id=$(jail::get_next_id)
   _path=${jailio_dir}/${_name}
-  _gw=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $2}')
-  _netmask=$(ifconfig -f inet:dotted ${_switch} | awk '/inet/ {print $4}')
+  _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
+  _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
   cat << EOF > /etc/jail.conf.d/${_name}.conf
 # vim: set syntax=sh:
 exec.clean;
@@ -116,7 +116,7 @@ ${_name} {
     \$ipaddr = "${_addr}";
     \$mask   = "${_netmask}";
     \$gw     = "${_gw}";
-    \$bridge = "${_switch}";
+    \$bridge = "${_bridge}";
     \$domain = "${_domain}";
     vnet;
     vnet.interface = "epair\${id}b";

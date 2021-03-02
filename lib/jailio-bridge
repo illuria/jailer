@@ -1,6 +1,6 @@
 #!/bin/sh
 
-switch::list(){
+bridge::list(){
   local _bridge
  _format="%s^%s^%s^\n"
 
@@ -19,7 +19,7 @@ switch::list(){
 }
 
 
-switch::create(){
+bridge::create(){
   local _name _ifname
   local _id _addr _type _mtu
 
