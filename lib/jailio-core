@@ -42,14 +42,16 @@ jail::destroy(){
   rm /etc/jail.conf.d/${_name}.conf &&
   sysrc jail_list-="${_name}"
 
-  while ! {
-    zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name}@base && zfs destroy ${JAILIO_ZFS_DATASET}/${_name}@base
-    sleep 5
-    ( zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name} || echo "dataset does not exist" ) && zfs destroy ${JAILIO_ZFS_DATASET}/${_name}
-  }
-  do
-    echo "ZFS busy, trying again"
-  done
+  jail::_destroyzfs ${_name}
+
+}
+
+jail::_destroyzfs(){
+  local _name="$1"
+  sleep 2
+  zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name}@base && ( zfs destroy ${JAILIO_ZFS_DATASET}/${_name}@base || jail::destroyzfs ${_name} ) || echo "snapshot does not exist"
+  sleep 2
+  zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name}      && ( zfs destroy ${JAILIO_ZFS_DATASET}/${_name}      || jail::destroyzfs ${_name} ) || echo "dataset does not exist"
 }
 
 jail::extract(){
