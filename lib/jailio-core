@@ -105,6 +105,32 @@ jail::create(){
   _path=${jailio_dir}/${_name}
   _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
   _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
+
+  [ ${_addr} = "DHCP" ] &&
+  _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{8}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/de:ad:/;')
+  _netexec=$(cat <<EOF
+    exec.start     += "/sbin/ifconfig epair\${id}b ether ${_macaddr} up";
+    exec.start     += "/sbin/dhclient epair\${id}b";
+EOF
+) &&
+  _netvars=$(cat <<EOF
+    devfs_ruleset = 10;
+EOF
+)
+
+  [  ${_addr} != "DHCP" ] &&
+  _netvars=$(cat <<EOF
+    \$ipaddr = "${_addr}";
+    \$mask   = "${_netmask}";
+    \$gw     = "${_gw}";
+EOF
+) &&
+  _netexec=$(cat <<EOF
+    exec.start     += "/sbin/ifconfig epair\${id}b \${ipaddr} netmask \${mask} up";
+    exec.start     += "/sbin/route add default \${gw}";
+EOF
+)
+
   cat << EOF > /etc/jail.conf.d/${_name}.conf
 # vim: set syntax=sh:
 exec.clean;
@@ -113,9 +139,7 @@ mount.devfs;
 
 ${_name} {
     \$id     = "${_id}";
-    \$ipaddr = "${_addr}";
-    \$mask   = "${_netmask}";
-    \$gw     = "${_gw}";
+${_netvars}
     \$bridge = "${_bridge}";
     \$domain = "${_domain}";
     vnet;
@@ -126,8 +150,7 @@ ${_name} {
     exec.prestart  += "ifconfig \${bridge} addm epair\${id}a up";
 
     exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
-    exec.start     += "/sbin/ifconfig epair\${id}b \${ipaddr} netmask \${mask} up";
-    exec.start     += "/sbin/route add default \${gw}";
+${_netexec}
     exec.start     += "/bin/sh /etc/rc";
 
     exec.prestop    = "ifconfig epair\${id}b -vnet \${name}";
