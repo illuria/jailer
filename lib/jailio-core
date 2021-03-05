@@ -2,14 +2,21 @@
 
 
 jail::list(){
-  _format="%s^%s^%s\n"
+  _format="%s^%s^%s^%s^%s\n"
   {
-    printf "${_format}" "JID" "HOSTNAME" "IPv4"
-    for _j in $(jls name);
+    printf "${_format}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4"
+    for _j in $(sysrc -n jail_list);
     do
-      _hostname=$(jexec ${_j} hostname)
-      _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair) | awk '/inet / {print $2}')
-      printf "${_format}" "${_j}" "${_hostname}" "${_ipaddr}"
+      if jls -j ${_j} jid > /dev/null 2>&1 ; then
+        _hostname=$(jexec ${_j} hostname)
+        _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair) | awk '/inet / {print $2}')
+        _state="Active"
+        _jid=$(jls -j ${_j} jid)
+        printf "${_format}" "${_j}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}"
+      else
+        _state="Stopped"
+        printf "${_format}" "${_j}" "${_state}"
+      fi
     done
   } | column -ts^
 }
