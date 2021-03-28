@@ -29,29 +29,41 @@ sysrc jail_enable="YES"
 
 ## Usage
 
-Jailio uses the `jail.conf.d` patch, to patch your system run
+Jailio uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it will run the patch during the first run.
+
+If you need to do it again, you can run
 ```
 jailio init
 ```
-Usually jailio will do this automatically at the first run
 
+### Networking
 
 First you will need to create a switch
 ```
-jailio switch create -a 192.168.100.1/24 public
+jailio bridge create -a 192.168.100.1/24 public
 ```
 
 Sidenote: the name public is just a description, it does nothing
 
+### Bootstraping the base system
+To bootstrap the base system run
+```
+jailio bootstrap 12.2-RELEASE
+```
+
+To list all bootstrapped base systems run
+```
+jailio bootstrap
+```
+
 Now you can create a Jail
 
 ```
-jailio create -r 12.2-RELEASE -b bridge0 -d loc.illuriasecurity.com -a 192.168.100.10 www0
+jailio create -r 12.2-RELEASE -b bridge0 -d mydomain.com -a 192.168.100.10 www0
 ```
 
-Sidenote: At first run this will download the base.txz tarball from FreeBSD. If your connection is slow then you can use another mirror by doing `setenv FreeBSD_mirror https://mirror.yandex.ru/freebsd` in (t)csh or `export FreeBSD_mirror=https://mirror.yandex.ru/freebsd` in (ba)sh
 
-Now you can enter the jail
+Now you can enter the Jail
 ```
 jailio console www0
 ```
