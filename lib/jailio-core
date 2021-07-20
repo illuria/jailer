@@ -66,13 +66,13 @@ jail::extract(){
   mkdir -p ${jailio_dir}/bootstrap/dist-files
   [ -z ${FreeBSD_mirror} ] && FreeBSD_mirror="https://download.freebsd.org/ftp"
   ( [ -e ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ] && jail::_checksum ${_version} ) ||
-  ( fetch -o ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/base.txz && jail::_checksum ${_version} )
+  ( fetch -o ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz && jail::_checksum ${_version} )
   tar -xf ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailio_dir}/bootstrap/${_version}/
 }
 
 jail::_checksum(){
   local _version=$1
-  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/$(uname -m)/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null
+  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null
 }
 
 
@@ -88,7 +88,7 @@ jail::bootstrap(){
 
 jail::create(){
   local _name _id _path
-  local _version=$(uname -r) _snap
+  local _version=${UNAME_r} _snap
   local _addr _bridge="bridge0" _domain=$(hostname)
   local _silent
   local _gw _netmask

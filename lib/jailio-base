@@ -3,6 +3,9 @@
 VERSION=0.1.0
 VERSION_INT=00100
 VERSION_BSD=$(uname -K)
+UNAME_m=$(uname -m)
+UNAME_p=$(uname -p)
+UNAME_r=$(uname -r)
 PATH=${PATH}:/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin
 
 cmd::parse_info "$@"
