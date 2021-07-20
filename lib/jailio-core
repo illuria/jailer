@@ -89,7 +89,7 @@ jail::bootstrap(){
 jail::create(){
   local _name _id _path
   local _version=${UNAME_r} _snap
-  local _addr _bridge="bridge0" _domain=$(hostname)
+  local _addr _bridge="bridge0" _domain=${HOSTNAME}
   local _silent
   local _gw _netmask
   local _script _content
