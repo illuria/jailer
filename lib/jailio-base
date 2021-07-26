@@ -9,13 +9,19 @@ UNAME_r=$(uname -r)
 HOSTNAME=$(hostname)
 PATH=${PATH}:/bin:/usr/bin:/usr/local/bin:/sbin:/usr/sbin:/usr/local/sbin
 
-cmd::parse_info "$@"
 
 . /etc/rc.subr
+load_rc_config "jail"
 load_rc_config "jailio"
 
 
-[ ! -d "/etc/jail.conf.d" ] && init::jailconf && mkdir /etc/jail.conf.d
+cmd::parse_init "$@"
+
+[ -z "$rc_force" ] && ! checkyesno jail_enable && util::err "\$jail_enable is not enabled in /etc/rc.conf!"
+
+
+diff ${LIB}/init/jail_confdir /etc/rc.d/jail > /dev/null || util::err "/etc/rc.d/jail not patched, please run jailio init"
+[ ! -d "/etc/jail.conf.d" ] && mkdir /etc/jail.conf.d
 [ ! -d "/var/log/jail" ]    && mkdir /var/log/jail
 
 zfs::init

@@ -1,15 +1,16 @@
 #!/bin/sh
 
-CMD_VALID_LIST="bootstrap,create,console,destroy,exec,init,list,snap,start,startall,stop,stopall,bridge,version"
+CMD_VALID_LIST="bootstrap,bridge,create,console,destroy,exec,help,init,list,snap,start,startall,stop,stopall,usage,version"
 
-cmd::parse_info(){
+cmd::parse_init(){
     local _cmd
 
     cmd::find "_cmd" "$1" "${CMD_VALID_LIST}"
 
     case "${_cmd}" in
         version) util::version && exit ;;
-        usage)   util::usage ;;
+        usage)   util::usage   && exit ;;
+        init)    init::init    && exit ;;
     esac
 }
 
@@ -21,18 +22,19 @@ cmd::parse(){
     shift
 
     case "${_cmd}" in
-        bootstrap)   jail::bootstrap "$@" ;;
-        create)      jail::create "$@"    ;;
-        console)     jail::console "$@"   ;;
-        destroy)     jail::destroy "$@"   ;;
-        exec)        jail::exec "$@"      ;;
-        init)        init::jailconf       ;;
-        list)        jail::list           ;;
-        snap)        zfs::snapshot "$@"   ;;
-        start)       jail::start "$@"     ;;
-        startall)    util::tbd ;;
-        stop)        jail::stop "$@"      ;;
-        stopall)     util::tbd ;;
+        bootstrap)   jail::bootstrap "$@"   ;;
+        create)      jail::create "$@"      ;;
+        console)     jail::console "$@"     ;;
+        destroy)     jail::destroy "$@"     ;;
+        exec)        jail::exec "$@"        ;;
+        help)        help::parse_help "$@"  ;;
+        init)        init::jailconf         ;;
+        list)        jail::list             ;;
+        snap)        zfs::snapshot "$@"     ;;
+        start)       jail::start "$@"       ;;
+        startall)    util::tbd              ;;
+        stop)        jail::stop "$@"        ;;
+        stopall)     util::tbd              ;;
         bridge)      cmd::parse_bridge "$@" ;;
         *)           util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
     esac

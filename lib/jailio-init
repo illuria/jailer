@@ -1,7 +1,6 @@
 #!/bin/sh
 
-init::jailconf(){
-  sysrc jail_enable="YES"
+init::init(){
   echo "Patching jail service for jail.conf.d support"
   patch -u /etc/rc.d/jail -i ${LIB}/init/jail_confdir.patch
   echo "Done!"

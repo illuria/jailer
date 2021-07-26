@@ -11,6 +11,7 @@ fi
 
 # load libs
 . "${LIB}/jailio-cmd"
+. "${LIB}/jailio-help"
 . "${LIB}/jailio-init"
 #. "${LIB}/jailio-config"
 . "${LIB}/jailio-core"
