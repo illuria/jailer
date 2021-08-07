@@ -18,7 +18,6 @@ fi
 #. "${LIB}/jailio-datastore"
 #. "${LIB}/jailio-info"
 #. "${LIB}/jailio-rctl"
-. "${LIB}/jailio-bridge"
 . "${LIB}/jailio-util"
 . "${LIB}/jailio-zfs"
 

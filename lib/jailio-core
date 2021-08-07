@@ -2,23 +2,38 @@
 
 
 jail::list(){
-  _format="%s^%s^%s^%s^%s\n"
+  local _json _format _style="text"
+  local _hostname _ipaddr _state _jid
+
+  while getopts j _opt; do
+    case ${_opt} in
+      j) _json="json" ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _jformact='{:name}^{:state}^{:jid}^{:hostname}^{:ipv4}\n'
+  _jformstp='{:name}^{:state}\n'
   {
-    printf "${_format}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4"
-    for _j in $(sysrc -n jail_list);
-    do
-      if jls -j ${_j} jid > /dev/null 2>&1 ; then
-        _hostname=$(jexec ${_j} hostname)
-        _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair) | awk '/inet / {print $2}')
-        _state="Active"
-        _jid=$(jls -j ${_j} jid)
-        printf "${_format}" "${_j}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}"
-      else
-        _state="Stopped"
-        printf "${_format}" "${_j}" "${_state}"
-      fi
-    done
-  } | column -ts^
+    [ ! -z ${_json} ]  && printf '[' || xo "${_jformact}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4"
+      for _j in $(sysrc -n jail_list);
+      do
+        if jls -j ${_j} jid > /dev/null 2>&1 ; then
+          _hostname=$(jexec ${_j} hostname)
+          _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair) | awk '/inet / {print $2}')
+          _state="Active"
+          _jid=$(jls -j ${_j} jid)
+          _format="${_jformact}"
+        else
+          _state="Stopped"
+          _format="${_jformstp}"
+        fi
+        [ ! -z ${_json} ] && _style="json" && printf "{"
+        xo --style "${_style}" "${_format}" "${_j}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}"
+        [ ! -z ${_json} ] && printf "}"
+      done
+    [ ! -z ${_json} ] && printf ']\n'
+  } | ( [ ! -z ${_json} ] && sed -e "s/}{/},{/g" || column -ts^ )
 }
 
 

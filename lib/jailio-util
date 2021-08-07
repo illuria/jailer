@@ -20,8 +20,6 @@ util::usage() {
 Usage: jailio ...
     version
     init
-    bridge list
-    bridge create [-m mtu] [-a add/pref] [-t type] name
 
     bootstrap [version]
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="bootstrap,bridge,create,console,destroy,exec,help,init,list,snap,start,startall,stop,stopall,usage,version"
+CMD_VALID_LIST="bootstrap,create,console,destroy,exec,help,init,list,snap,start,startall,stop,stopall,usage,version"
 
 cmd::parse_init(){
     local _cmd
@@ -29,31 +29,14 @@ cmd::parse(){
         exec)        jail::exec "$@"        ;;
         help)        help::parse_help "$@"  ;;
         init)        init::jailconf         ;;
-        list)        jail::list             ;;
+        list)        jail::list "$@"        ;;
         snap)        zfs::snapshot "$@"     ;;
         start)       jail::start "$@"       ;;
         startall)    util::tbd              ;;
         stop)        jail::stop "$@"        ;;
         stopall)     util::tbd              ;;
-        bridge)      cmd::parse_bridge "$@" ;;
         *)           util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
     esac
-}
-
-cmd::parse_bridge(){
-  local _cmd
-
-  cmd::find "_cmd" "$1" "list,info,create,add,remove" || util::usage
-  shift
-
-  case "${_cmd}" in
-    list)     bridge::list ;;
-    info)     bridge::info "$@" ;;
-    create)   bridge::create "$@" ;;
-    add)      bridge::add "$@" ;;
-    remove)   bridge::remove "$@" ;;
-    *)        util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
-  esac
 }
 
 cmd::find(){
