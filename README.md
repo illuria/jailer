@@ -16,54 +16,88 @@ Next, run `make install`
 
 Jailio loves to have ZFS, so make sure you have a system with ZFS
 
+> In case you don't, you can create a ZFS pool in your existing filesystem by doing `truncate -s 10G /usr/local/disk0.img; zpool create zroot /usr/local/disk0.img`
+
+
 To create a ZFS dataset for Jails, run the following
+
 ```
 zfs create -o mountpoint=/usr/local/jails zroot/jails
 ```
 
 Then, need to specify the ZFS dataset for Jailio and enable Jails
+
 ```
 sysrc jailio_dir="zfs:zroot/jails"
 sysrc jail_enable="YES"
 ```
 
-## Usage
+Jailio uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it will need to patch your `/etc/rc.d/jail` script.
 
-Jailio uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it will run the patch during the first run.
+To patch, you can run
 
-If you need to do it again, you can run
 ```
 jailio init
 ```
 
+
+## Usage
+
 ### Networking
 
 First you will need to create a switch
-```
-jailio bridge create -a 192.168.100.1/24 public
-```
 
-Sidenote: the name public is just a description, it does nothing
+```console
+sysrc cloned_interfaces="bridge0"
+sysrc ifconfig_bridge0="inet 10.0.0.1 netmask 0xffffff00 descr jails-bridge"
+```
 
 ### Bootstraping the base system
-To bootstrap the base system run
+To bootstrap the base system run the bootstrap subcommand
+
 ```
 jailio bootstrap 12.2-RELEASE
 ```
 
-To list all bootstrapped base systems run
+This will download and extract `base.txz` from `https://download.freebsd.org/ftp`
+
+> If you want to use a mirror closer to you, you can change the `FreeBSD_mirror` environment variable, e.g. `setenv FreeBSD_mirror https://mirror.yandex.ru/freebsd`
+
+To list all bootstrapped base systems run the `bootstrap` subcommand without arguments.
+
+```console
+# jailio bootstrap
+12.2-RELEASE
 ```
-jailio bootstrap
+### Creating Jails
+
+To create a new jail use the `create` subcommand
+
+```
+jailio create -r 12.2-RELEASE -b bridge0 -d dev.mydomain.com -a 10.0.0.10 www0
 ```
 
-Now you can create a Jail
+The `-r` flag is to specify the release, `-b` is for the bridge, `-d` is the domain and `-a` is the IP address.
+
+No man pages yet, but the `help` subcommand can help you out!
 
 ```
-jailio create -r 12.2-RELEASE -b bridge0 -d mydomain.com -a 192.168.100.10 www0
+# jailio help create
+Usage:  jailio create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
+Options:
+  -r version    : FreeBSD-version as base of Jail
+  -s snapshot   : Clone from snapshot as base of Jail
+  -b bridge     : Attach to bridge
+  -n            : Make Jail less noisy
+  -d domain     : Set domain in Jail
+  -a addr       : Use addr as address or DHCP to use dhclient in Jail
+  -f exec.sh    : Execute exec.sh in Jail after creation
+  -c dir/file   : Copy dir/file into /tmp of Jail
 ```
 
 
 Now you can enter the Jail
+
 ```
 jailio console www0
 ```
@@ -92,7 +126,7 @@ will make a named snapshot to use later.
 Now we will clone our snapshot
 
 ```
-jailio create -s www0@server_ready -b bridge0 -d loc.illuriasecurity.com -a 192.168.100.20 www_prod
+jailio create -s www0@server_ready -b bridge0 -d srv.illuriasecurity.com -a 10.0.0.81 www_prod
 ```
 
 
