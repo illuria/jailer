@@ -17,7 +17,7 @@ util::version(){
 
 util::usage() {
     cat << EOT
-Usage: jailio ...
+Usage: jailer ...
     version
     init
 

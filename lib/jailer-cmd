@@ -35,7 +35,7 @@ cmd::parse(){
         startall)    util::tbd              ;;
         stop)        jail::stop "$@"        ;;
         stopall)     util::tbd              ;;
-        *)           util::err "unknown command '${_user_cmd}'. please run 'jailio usage' or view the manpage for help" ;;
+        *)           util::err "unknown command '${_user_cmd}'. please run 'jailer usage' or view the manpage for help" ;;
     esac
 }
 

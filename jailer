@@ -1,0 +1,24 @@
+#!/bin/sh
+
+if [ -e "./lib/jailer-core" ]; then
+    LIB="./lib"
+elif [ -e "/usr/local/lib/jailer" ]; then
+    LIB="/usr/local/lib/jailer"
+else
+    echo "unable to locate jailer libraries"
+    exit 1
+fi
+
+# load libs
+. "${LIB}/jailer-cmd"
+. "${LIB}/jailer-help"
+. "${LIB}/jailer-init"
+#. "${LIB}/jailer-config"
+. "${LIB}/jailer-core"
+#. "${LIB}/jailer-datastore"
+#. "${LIB}/jailer-info"
+#. "${LIB}/jailer-rctl"
+. "${LIB}/jailer-util"
+. "${LIB}/jailer-zfs"
+
+. "${LIB}/jailer-base"

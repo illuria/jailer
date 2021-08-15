@@ -78,16 +78,16 @@ jail::_destroyzfs(){
 
 jail::extract(){
   local version=$1
-  mkdir -p ${jailio_dir}/bootstrap/dist-files
+  mkdir -p ${jailer_dir}/bootstrap/dist-files
   [ -z ${FreeBSD_mirror} ] && FreeBSD_mirror="https://download.freebsd.org/ftp"
-  ( [ -e ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ] && jail::_checksum ${_version} ) ||
-  ( fetch -o ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz && jail::_checksum ${_version} )
-  tar -xf ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailio_dir}/bootstrap/${_version}/
+  ( [ -e ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ] && jail::_checksum ${_version} ) ||
+  ( fetch -o ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz && jail::_checksum ${_version} )
+  tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailio_dir}/bootstrap/${_version}/
 }
 
 jail::_checksum(){
   local _version=$1
-  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailio_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null
+  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null
 }
 
 
@@ -126,7 +126,7 @@ jail::create(){
 
   _name="${1:-$(uuidgen)}"
   _id=$(jail::get_next_id)
-  _path=${jailio_dir}/${_name}
+  _path=${jailer_dir}/${_name}
   _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
   _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
 

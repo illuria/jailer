@@ -9,7 +9,7 @@ help::parse_help(){
 
 help::create(){
   cat << EOT
-Usage:  jailio create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
+Usage:  jailer create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
 Options:
   -r version    : FreeBSD-version as base of Jail
   -s snapshot   : Clone from snapshot as base of Jail
