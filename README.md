@@ -28,7 +28,7 @@ zfs create -o mountpoint=/usr/local/jails zroot/jails
 Then, need to specify the ZFS dataset for Jailio and enable Jails
 
 ```
-sysrc jailio_dir="zfs:zroot/jails"
+sysrc jailer_dir="zfs:zroot/jails"
 sysrc jail_enable="YES"
 ```
 
@@ -37,7 +37,7 @@ Jailio uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it wi
 To patch, you can run
 
 ```
-jailio init
+jailer init
 ```
 
 
@@ -56,7 +56,7 @@ sysrc ifconfig_bridge0="inet 10.0.0.1 netmask 0xffffff00 descr jails-bridge"
 To bootstrap the base system run the bootstrap subcommand
 
 ```
-jailio bootstrap 12.2-RELEASE
+jailer bootstrap 12.2-RELEASE
 ```
 
 This will download and extract `base.txz` from `https://download.freebsd.org/ftp`
@@ -66,7 +66,7 @@ This will download and extract `base.txz` from `https://download.freebsd.org/ftp
 To list all bootstrapped base systems run the `bootstrap` subcommand without arguments.
 
 ```console
-# jailio bootstrap
+# jailer bootstrap
 12.2-RELEASE
 ```
 ### Creating Jails
@@ -74,7 +74,7 @@ To list all bootstrapped base systems run the `bootstrap` subcommand without arg
 To create a new jail use the `create` subcommand
 
 ```
-jailio create -r 12.2-RELEASE -b bridge0 -d dev.mydomain.com -a 10.0.0.10 www0
+jailer create -r 12.2-RELEASE -b bridge0 -d dev.mydomain.com -a 10.0.0.10 www0
 ```
 
 The `-r` flag is to specify the release, `-b` is for the bridge, `-d` is the domain and `-a` is the IP address.
@@ -82,8 +82,8 @@ The `-r` flag is to specify the release, `-b` is for the bridge, `-d` is the dom
 No man pages yet, but the `help` subcommand can help you out!
 
 ```
-# jailio help create
-Usage:  jailio create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
+# jailer help create
+Usage:  jailer create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
 Options:
   -r version    : FreeBSD-version as base of Jail
   -s snapshot   : Clone from snapshot as base of Jail
@@ -99,25 +99,25 @@ Options:
 Now you can enter the Jail
 
 ```
-jailio console www0
+jailer console www0
 ```
 
 you can also run scripts/programs from the host into the jail
 
 ```
-jailio exec -f ~/scripts/install_packages.sh www0
+jailer exec -f ~/scripts/install_packages.sh www0
 ```
 
 you can make a snapshot of your jail (while running)
 
 ```
-jailio snap www0
+jailer snap www0
 ```
 
 will make a snapshot with the snapshot name as current date with minutes/seconds
 
 ```
-jailio snap www0@server_ready
+jailer snap www0@server_ready
 ```
 
 will make a named snapshot to use later.
@@ -126,7 +126,7 @@ will make a named snapshot to use later.
 Now we will clone our snapshot
 
 ```
-jailio create -s www0@server_ready -b bridge0 -d srv.illuriasecurity.com -a 10.0.0.81 www_prod
+jailer create -s www0@server_ready -b bridge0 -d srv.illuriasecurity.com -a 10.0.0.81 www_prod
 ```
 
 
