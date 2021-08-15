@@ -45,20 +45,20 @@ zfs::init(){
 
     # check for zfs storage location
     # user should specify "zfs:pool/dataset" if they want ZFS support
-    if [ "${jailio_dir%%:*}" = "zfs" ]; then
+    if [ "${jailer_dir%%:*}" = "zfs" ]; then
 
         # check zfs running
         kldstat -qm zfs >/dev/null 2>&1
         [ $? -eq 0 ] || util::err "ZFS support requested but ZFS not available"
 
         # global zfs details
-        JAILIO_ZFS="1"
-        JAILIO_ZFS_DATASET="${jailio_dir#*:}"
+        JAILER_ZFS="1"
+        JAILER_ZFS_DATASET="${jailer_dir#*:}"
 
         # update vm_dir
         # this makes sure it exists, confirms it's mounted & gets correct path in one go
-        jailio_dir=$(mount | grep "^${JAILIO_ZFS_DATASET} " |cut -d' ' -f3)
-        [ -z "${jailio_dir}" ] && util::err "unable to locate mountpoint for ZFS dataset ${JAILIO_ZFS_DATASET}"
+        jailer_dir=$(mount | grep "^${JAILER_ZFS_DATASET} " |cut -d' ' -f3)
+        [ -z "${jailer_dir}" ] && util::err "unable to locate mountpoint for ZFS dataset ${JAILER_ZFS_DATASET}"
     fi
 }
 
@@ -111,7 +111,7 @@ zfs::__format_options(){
     setvar "${_val}" ""
 }
 
-# 'jailio snapshot'
+# 'jailer snapshot'
 # create a snapshot of a jail
 # specify the snapshot name in zfs format jail@snap
 # if no snapshot name is specified, Y-m-d-H:M:S will be used
@@ -136,10 +136,10 @@ zfs::snapshot(){
     fi
 
     [ -z "${_name}" ] && util::usage
-    [ ! "${JAILIO_ZFS}" = "1" ] && util::err "cannot snapshot jails on non-zfs datastores"
+    [ ! "${JAILER_ZFS}" = "1" ] && util::err "cannot snapshot jails on non-zfs datastores"
     [ -z "${_snap}" ] && _snap=$(date +"%Y-%m-%d-%H:%M:%S")
 
-    zfs snapshot -r ${JAILIO_ZFS_DATASET}/${_name}@${_snap}
+    zfs snapshot -r ${JAILER_ZFS_DATASET}/${_name}@${_snap}
     [ $? -eq 0 ] || util::err "failed to create recursive snapshot of virtual machine"
 }
 
@@ -165,7 +165,7 @@ zfs::remove_snapshot(){
     [ $? -eq 0 ] || util::err "failed to remove snapshot ${JAIL_DS_ZFS_DATASET}/${_name}@${_snap}"
 }
 
-# 'jailio rollback'
+# 'jailer rollback'
 # roll a jail back to a previous snapshot
 # we show zfs errors here as it will fail if the snapshot is not the most recent.
 # zfs will output an error mentioning to use '-r', and listing the snapshots
@@ -319,15 +319,15 @@ zfs::image_create(){
     fi
 
     # try to snapshot
-    zfs snapshot -r "${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}" >/dev/null 2>&1
-    [ $? -eq 0 ] || util::err "failed to create snapshot of source dataset ${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}"
+    zfs snapshot -r "${JAILER_DS_ZFS_DATASET}/${_name}@${_snap}" >/dev/null 2>&1
+    [ $? -eq 0 ] || util::err "failed to create snapshot of source dataset ${JAILER_DS_ZFS_DATASET}/${_name}@${_snap}"
 
     # copy source
     if [ -n "${_no_compress}" ]; then
         _filename="${_uuid}.zfs"
 
         echo "Creating guest image, this may take some time..."
-        zfs send -R "${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}" > "${vm_dir}/images/${_filename}"
+        zfs send -R "${JAILER_DS_ZFS_DATASET}/${_name}@${_snap}" > "${vm_dir}/images/${_filename}"
     else
         _filename="${_uuid}.zfs.z"
 
@@ -342,13 +342,13 @@ zfs::image_create(){
         fi
 
         echo "Creating a compressed image, this may take some time..."
-        zfs send -R "${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}" | ${_compress} > "${vm_dir}/images/${_filename}"
+        zfs send -R "${JAILER_DS_ZFS_DATASET}/${_name}@${_snap}" | ${_compress} > "${vm_dir}/images/${_filename}"
     fi
 
     [ $? -ne 0 ] && exit 1
 
     # done with the source snapshot
-    zfs destroy -r ${JAILIO_DS_ZFS_DATASET}/${_name}@${_snap}
+    zfs destroy -r ${JAILER_DS_ZFS_DATASET}/${_name}@${_snap}
 
     # create a description file
     sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" "description=${_desc}" >/dev/null 2>&1
@@ -401,11 +401,11 @@ zfs::image_provision(){
 
     # check format of image
     case ${_type} in
-        zfs) cat "${vm_dir}/images/${_file}" | zfs recv "${JAILIO_DS_ZFS_DATASET}/${_name}" ;;
-        xz)  xz -dc "${vm_dir}/images/${_file}" 2>/dev/null | zfs recv "${JAILIO_DS_ZFS_DATASET}/${_name}" ;;
+        zfs) cat "${vm_dir}/images/${_file}" | zfs recv "${JAILER_DS_ZFS_DATASET}/${_name}" ;;
+        xz)  xz -dc "${vm_dir}/images/${_file}" 2>/dev/null | zfs recv "${JAILER_DS_ZFS_DATASET}/${_name}" ;;
         z)   _decompress=$(sysrc -inqf "${vm_dir}/images/${_uuid}.manifest" decompress)
              [ -z "${_decompress}" ] && util::err "unable to locate decompression configuration"
-             ${_decompress} "${vm_dir}/images/${_file}" 2>/dev/null | zfs recv "${JAILIO_DS_ZFS_DATASET}/${_name}" ;;
+             ${_decompress} "${vm_dir}/images/${_file}" 2>/dev/null | zfs recv "${JAILER_DS_ZFS_DATASET}/${_name}" ;;
         *)   util::err "unsupported guest image type - '${_type}'" ;;
     esac
 
@@ -413,7 +413,7 @@ zfs::image_provision(){
     [ $? -eq 0 ] || util::err "errors occured while trying to unpackage the image file"
 
     # remove the original snapshot
-    zfs destroy -r "${JAILIO_DS_ZFS_DATASET}/${_name}@${_uuid%%-*}" >/dev/null 2>&1
+    zfs destroy -r "${JAILER_DS_ZFS_DATASET}/${_name}@${_uuid%%-*}" >/dev/null 2>&1
 
     # rename the guest configuration file
     mv "${VM_DS_PATH}/${_name}/${_oldname}.conf" "${VM_DS_PATH}/${_name}/${_name}.conf" >/dev/null 2>&1

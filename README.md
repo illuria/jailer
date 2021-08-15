@@ -1,7 +1,7 @@
-# Jailio
+# Jailer
 ## The final word in container orchestration
 
-Jailio is meant to be as integrated as possible with FreeBSD Jail subsystem
+Jailer is meant to be as integrated as possible with FreeBSD Jail subsystem
 
 
 THIS IS ALPHA SOFTWARE: HERE BE DRAGONS
@@ -14,7 +14,7 @@ Next, run `make install`
 
 ## Configuration
 
-Jailio loves to have ZFS, so make sure you have a system with ZFS
+Jailer loves to have ZFS, so make sure you have a system with ZFS
 
 > In case you don't, you can create a ZFS pool in your existing filesystem by doing `truncate -s 10G /usr/local/disk0.img; zpool create zroot /usr/local/disk0.img`
 
@@ -25,14 +25,14 @@ To create a ZFS dataset for Jails, run the following
 zfs create -o mountpoint=/usr/local/jails zroot/jails
 ```
 
-Then, need to specify the ZFS dataset for Jailio and enable Jails
+Then, need to specify the ZFS dataset for Jailer and enable Jails
 
 ```
 sysrc jailer_dir="zfs:zroot/jails"
 sysrc jail_enable="YES"
 ```
 
-Jailio uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it will need to patch your `/etc/rc.d/jail` script.
+Jailer uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it will need to patch your `/etc/rc.d/jail` script.
 
 To patch, you can run
 

@@ -71,9 +71,9 @@ jail::destroy(){
 jail::_destroyzfs(){
   local _name="$1"
   sleep 2
-  zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name}@base && ( zfs destroy ${JAILIO_ZFS_DATASET}/${_name}@base || jail::destroyzfs ${_name} ) || echo "snapshot does not exist"
+  zfs list -Hpo name ${JAILER_ZFS_DATASET}/${_name}@base && ( zfs destroy ${JAILER_ZFS_DATASET}/${_name}@base || jail::destroyzfs ${_name} ) || echo "snapshot does not exist"
   sleep 2
-  zfs list -Hpo name ${JAILIO_ZFS_DATASET}/${_name}      && ( zfs destroy ${JAILIO_ZFS_DATASET}/${_name}      || jail::destroyzfs ${_name} ) || echo "dataset does not exist"
+  zfs list -Hpo name ${JAILER_ZFS_DATASET}/${_name}      && ( zfs destroy ${JAILER_ZFS_DATASET}/${_name}      || jail::destroyzfs ${_name} ) || echo "dataset does not exist"
 }
 
 jail::extract(){
@@ -82,7 +82,7 @@ jail::extract(){
   [ -z ${FreeBSD_mirror} ] && FreeBSD_mirror="https://download.freebsd.org/ftp"
   ( [ -e ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ] && jail::_checksum ${_version} ) ||
   ( fetch -o ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz && jail::_checksum ${_version} )
-  tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailio_dir}/bootstrap/${_version}/
+  tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailer_dir}/bootstrap/${_version}/
 }
 
 jail::_checksum(){
@@ -92,13 +92,13 @@ jail::_checksum(){
 
 
 jail::bootstrap(){
-  [ "$#" -eq "0" ] && zfs list -t snap -Ho name -r ${JAILIO_ZFS_DATASET}/bootstrap | sed -e "s|${JAILIO_ZFS_DATASET}/bootstrap/||" -e 's/@base$//' && exit 0
+  [ "$#" -eq "0" ] && zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/bootstrap | sed -e "s|${JAILER_ZFS_DATASET}/bootstrap/||" -e 's/@base$//' && exit 0
 
   local _version="${1}"
 
-  zfs create -p ${JAILIO_ZFS_DATASET}/bootstrap/${_version}
+  zfs create -p ${JAILER_ZFS_DATASET}/bootstrap/${_version}
   jail::extract ${_version}
-  zfs snap ${JAILIO_ZFS_DATASET}/bootstrap/${_version}@base
+  zfs snap ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base
 }
 
 jail::create(){
@@ -189,7 +189,7 @@ ${_netexec}
 }
 EOF
 
-  [ ! -z ${_snap} ]    && zfs clone ${JAILIO_ZFS_DATASET}/${_snap} ${JAILIO_ZFS_DATASET}/${_name} || ( zfs send ${JAILIO_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILIO_ZFS_DATASET}/${_name} )
+  [ ! -z ${_snap} ]    && zfs clone ${JAILER_ZFS_DATASET}/${_snap} ${JAILER_ZFS_DATASET}/${_name} || ( zfs send ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILER_ZFS_DATASET}/${_name} )
   [ ! -z ${_silent} ]  && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss"
   [ ! -z ${_content} ] && cp -a ${_content} ${_path}/tmp/
 
