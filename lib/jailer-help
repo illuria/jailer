@@ -3,7 +3,8 @@
 help::parse_help(){
   case "${1}" in
     create)   help::create  ;;
-    *)        util::usage    ;;
+    edit)     help::edit    ;;
+    *)        util::usage   ;;
   esac
 }
 
@@ -20,6 +21,13 @@ Options:
   -f exec.sh    : Execute exec.sh in Jail after creation
   -c dir/file   : Copy dir/file into /tmp of Jail
 
+EOT
+  exit 0
+}
+
+help::edit(){
+  cat << EOT
+Usage: jailer edit name
 EOT
   exit 0
 }
