@@ -216,3 +216,12 @@ jail::exec() {
   _name="$1"
   jexec -l ${_name} /bin/sh -s < ${_script}
 }
+
+jail::edit() {
+  [ -z "${EDITOR}" ] && EDITOR=vi
+
+  [ $# -lt 1 ] && help::edit
+
+  local _name="$1"
+  ${EDITOR} "/etc/jail.conf.d/${_name}.conf"
+}
