@@ -20,7 +20,7 @@ jail::list(){
       do
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
-          _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair) | awk '/inet / {print $2}')
+          _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
           _state="Active"
           _jid=$(jls -j ${_j} jid)
           _format="${_jformact}"
