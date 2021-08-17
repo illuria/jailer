@@ -71,6 +71,7 @@ net::rdr_del() {
       i)  _index="${OPTARG}"  ;;
       j)  _jail="${OPTARG}"   ;;
       f)  _flush="yes"        ;;
+      *)  help::rdr           ;;
     esac
   done
   shift $((OPTIND - 1))

@@ -18,23 +18,21 @@ util::version(){
 util::usage() {
     cat << EOT
 Usage: jailer ...
-    version
-    init
-
-    bootstrap [version]
-
-    create [-r version | -s snap] [-b bridge] [-n | --no-noise] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
-    destroy name
-
-    list
-    start [name ...]
-    stop [-f] [name ...]
-
-    exec -f /path/to/script.sh name
-    console name
-
-    snap jail[@name]
-
+   version
+   init
+   help subcommand
+   bootstrap [version]
+   create [-r version | -s snap] [-b bridge] [-n | --no-noise] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
+   destroy name
+   list
+   start [name ...]
+   stop [-f] [name ...]
+   exec -f /path/to/script.sh name
+   console name
+   snap jail[@name]
+   rdr list [jail]
+   rdr add -i interface [ -a my.second.ip.addr ] [ -p tcp|udp -s srcport [ -d destport ] ] jail
+   rdr del -j jail [ -i rule_index | -f ] ; -f deletes all rules for jail
 EOT
     exit 1
 }
