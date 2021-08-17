@@ -21,7 +21,6 @@ Options:
   -a addr       : Use addr as address or DHCP to use dhclient in Jail
   -f exec.sh    : Execute exec.sh in Jail after creation
   -c dir/file   : Copy dir/file into /tmp of Jail
-
 EOT
   exit 0
 }
