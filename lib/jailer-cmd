@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="bootstrap,create,console,destroy,edit,exec,help,init,list,snap,start,startall,stop,stopall,usage,version"
+CMD_VALID_LIST="bootstrap,create,console,destroy,edit,exec,help,init,list,rdr,snap,start,startall,stop,stopall,usage,version"
 
 cmd::parse_init(){
     local _cmd
@@ -22,21 +22,22 @@ cmd::parse(){
     shift
 
     case "${_cmd}" in
-        bootstrap)   jail::bootstrap "$@"   ;;
-        create)      jail::create "$@"      ;;
-        console)     jail::console "$@"     ;;
-        destroy)     jail::destroy "$@"     ;;
-        edit)        jail::edit "$@"        ;;
-        exec)        jail::exec "$@"        ;;
-        help)        help::parse_help "$@"  ;;
-        init)        init::jailconf         ;;
-        list)        jail::list "$@"        ;;
-        snap)        zfs::snapshot "$@"     ;;
-        start)       jail::start "$@"       ;;
-        startall)    util::tbd              ;;
-        stop)        jail::stop "$@"        ;;
-        stopall)     util::tbd              ;;
-        *)           util::err "unknown command '${_user_cmd}'. please run 'jailer usage' or view the manpage for help" ;;
+        bootstrap)    jail::bootstrap "$@"   ;;
+        create)       jail::create "$@"      ;;
+        console)      jail::console "$@"     ;;
+        destroy)      jail::destroy "$@"     ;;
+        edit)         jail::edit "$@"        ;;
+        exec)         jail::exec "$@"        ;;
+        help)         help::parse_help "$@"  ;;
+        init)         init::jailconf         ;;
+        list)         jail::list "$@"        ;;
+        rdr)          net::rdr_parse "$@"    ;;
+        snap)         zfs::snapshot "$@"     ;;
+        start)        jail::start "$@"       ;;
+        startall)     util::tbd              ;;
+        stop)         jail::stop "$@"        ;;
+        stopall)      util::tbd              ;;
+        *)            util::err "unknown command '${_user_cmd}'. please run 'jailer usage' or view the manpage for help" ;;
     esac
 }
 

@@ -18,6 +18,7 @@ fi
 #. "${LIB}/jailer-datastore"
 #. "${LIB}/jailer-info"
 #. "${LIB}/jailer-rctl"
+. "${LIB}/jailer-net"
 . "${LIB}/jailer-util"
 . "${LIB}/jailer-zfs"
 

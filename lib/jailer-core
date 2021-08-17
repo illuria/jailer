@@ -225,3 +225,8 @@ jail::edit() {
   local _name="$1"
   ${EDITOR} "/etc/jail.conf.d/${_name}.conf"
 }
+
+jail::checkexists(){
+  _name="${1}"
+  jls -j ${_name} > /dev/null 2>&1 || util::err "Jail ${_name} does not exist. Use 'jailer list'"
+}

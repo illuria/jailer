@@ -1,0 +1,84 @@
+#!/bin/sh
+
+net::rdr_parse() {
+  case "${1}" in
+    list)   net::rdr_list "$@"  ;;
+    add)    net::rdr_add "$@"   ;;
+    del)    net::rdr_del "$@"   ;;
+  esac
+}
+
+net::rdr_list(){
+  shift
+  _name="$1"
+  [ -z "${_name}" ] && cat /etc/jail.conf.d/.pf.rdr.jailer.conf && exit 0
+  jail::checkexists ${_name}
+  grep " ${_name}\$" /etc/jail.conf.d/.pf.rdr.jailer.conf
+  exit 0
+}
+
+net::rdr_add() {
+  local _name _srcport _destport _interface _addr
+
+  shift
+  while getopts :i:s:d:a:p: _opt; do
+    case ${_opt} in
+      a)  _addr="${OPTARG}"       ;;
+      i)  _interface="${OPTARG}"  ;;
+      p)  _proto="${OPTARG}"      ;;
+      s)  _srcport="${OPTARG}"    ;;
+      d)  _destport="${OPTARG}"   ;;
+      *)  help::rdr               ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _name="${1}"
+  jail::checkexists ${_name}
+  _jaddr=$(jexec ${_name} ifconfig $(jexec ${_name} ifconfig -g epair) | awk '/inet / {print $2}')
+
+  ## Error handling
+  [ -z "${_interface}" ] && util::err "Please specify interface with -i"
+  [ -z "${_srcport}" ] && [ -z "${_addr}" ] && util::err "Please redirect by specifying a port (-s 80 -p tcp) or an address (-a my.second.ip.addr)"
+  [ ! -z "${_srcport}" ] && [ -z "${_proto}" ] && util::err "Please specify protocol with -p; e.g. -p tcp, -p udp"
+  [ -z "${_destport}" ] && [ -n "${_srcport}" ] && _destport="${_srcport}"
+
+  ## Constructing redirection rule
+  _rdrbegin="rdr pass on ${_interface} inet"
+  [ ! -z "${_proto}" ] && _rdrproto="proto ${_proto}"
+  _rdrfrom="from any"
+  _rdrtoaddr="to ${_addr}"
+  [ -n "${_srcport}" ] && _rdrtoport="port ${_srcport}"
+  _rdrdestaddr="-> ${_jaddr}"
+  [ -n "${_destport}" ] && _rdrdestport="port ${_destport}"
+  _rule="${_rdrbegin} ${_rdrproto} ${_rdrfrom} ${_rdrtoaddr} ${_rdrtoport} ${_rdrdestaddr} ${_rdrdestport}"
+  _index=$(expr $(
+    ( grep -so -e '#\S*' /etc/jail.conf.d/.pf.rdr.jailer.conf || echo '#0' ) |
+    sort -h |
+    tail -1 |
+    tr -d '#'
+    ) + 1
+  )
+  ( echo ${_rule} | pfctl -nf- ) && \
+  echo "${_rule} #${_index} ${_name}" >> /etc/jail.conf.d/.pf.rdr.jailer.conf && \
+  /usr/sbin/service pf reload
+}
+
+net::rdr_del() {
+  shift
+  while getopts :fj:i: _opt; do
+    case ${_opt} in
+      i)  _index="${OPTARG}"  ;;
+      j)  _jail="${OPTARG}"   ;;
+      f)  _flush="yes"        ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  [ -z "${_jail}" ] && util::err "Please specify jail with -j jailname" && exit 0
+  jail::checkexists "${_jail}"
+  [ -n "${_index}" ] && sed -i ".$(date +%s)" -e "/#${_index} ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
+    /usr/sbin/service pf reload && exit 0
+  [ -n "${_flush}" ] && sed -i ".$(date +%s)" -e "/ ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
+    /usr/sbin/service pf reload && exit 0
+}
