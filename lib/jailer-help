@@ -41,3 +41,10 @@ Usage: jailer rdr ...
 EOT
   exit 0
 }
+
+help::edit(){
+  cat << EOT
+Usage: jailer edit name
+EOT
+  exit 0
+}
