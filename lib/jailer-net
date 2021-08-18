@@ -8,6 +8,14 @@ net::rdr_parse() {
   esac
 }
 
+net::nat_parse(){
+  case "${1}" in
+    list)   net::nat_list "$@"  ;;
+    add)    net::nat_add "$@"   ;;
+    del)    net::nat_del "$@"   ;;
+  esac
+}
+
 net::rdr_list(){
   shift
   _name="$1"
@@ -82,4 +90,34 @@ net::rdr_del() {
     /usr/sbin/service pf reload && exit 0
   [ -n "${_flush}" ] && sed -i ".$(date +%s)" -e "/ ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
     /usr/sbin/service pf reload && exit 0
+}
+
+net::nat_add() {
+  local _name _addr _interface
+
+  shift
+  while getopts :i:a: _opt; do
+    case ${_opt} in
+      a)  _addr="${OPTARG}"       ;;
+      i)  _interface="${OPTARG}"  ;;
+      *)  help::nat               ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _name="${1}"
+  jail::checkexists ${_name}
+  _jaddr=$(jexec ${_name} ifconfig $(jexec ${_name} ifconfig -g epair) | awk '/inet / {print $2}')
+
+  ## Error handling
+  [ -z "${_interface}" ] && util::err "Please specify interface with -i"
+
+  ## Constructing NAT rule
+  _natbegin="nat on ${_interface} inet"
+  _natfrom="from ${_jaddr} to any"
+  [ ! -z "${_addr}" ] && _nataddr="-> ${_addr}" || _nataddr="-> (${_interface}:0)"
+  _rule="${_natbegin} ${_natfrom} ${_nataddr}"
+  ( echo ${_rule} | pfctl -nvf- ) && \
+  echo "${_rule} #${_name}" >> /etc/jail.conf.d/.pf.nat.jailer.conf && \
+  /usr/sbin/service pf reload
 }
