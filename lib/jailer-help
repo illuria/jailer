@@ -4,6 +4,7 @@ help::parse_help(){
   case "${1}" in
     create)   help::create  ;;
     edit)     help::edit    ;;
+    nat)      help::nat     ;;
     rdr)      help::rdr     ;;
     *)        util::usage   ;;
   esac

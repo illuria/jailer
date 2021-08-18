@@ -128,7 +128,7 @@ net::nat_add() {
   _natfrom="from ${_jaddr} to any"
   [ ! -z "${_addr}" ] && _nataddr="-> ${_addr}" || _nataddr="-> (${_interface}:0)"
   _rule="${_natbegin} ${_natfrom} ${_nataddr}"
-  ( echo ${_rule} | pfctl -nvf- ) && \
+  ( echo ${_rule} | pfctl -nf- ) && \
   echo "${_rule} #${_name}" >> /etc/jail.conf.d/.pf.nat.jailer.conf && \
   /usr/sbin/service pf reload
 }
