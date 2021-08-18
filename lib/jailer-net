@@ -18,15 +18,15 @@ net::rdr_list(){
 }
 
 net::rdr_add() {
-  local _name _srcport _destport _interface _addr
+  local _name _recvport _destport _interface _addr
 
   shift
-  while getopts :i:s:d:a:p: _opt; do
+  while getopts :i:r:d:a:p: _opt; do
     case ${_opt} in
       a)  _addr="${OPTARG}"       ;;
       i)  _interface="${OPTARG}"  ;;
       p)  _proto="${OPTARG}"      ;;
-      s)  _srcport="${OPTARG}"    ;;
+      r)  _recvport="${OPTARG}"    ;;
       d)  _destport="${OPTARG}"   ;;
       *)  help::rdr               ;;
     esac
@@ -39,16 +39,16 @@ net::rdr_add() {
 
   ## Error handling
   [ -z "${_interface}" ] && util::err "Please specify interface with -i"
-  [ -z "${_srcport}" ] && [ -z "${_addr}" ] && util::err "Please redirect by specifying a port (-s 80 -p tcp) or an address (-a my.second.ip.addr)"
-  [ ! -z "${_srcport}" ] && [ -z "${_proto}" ] && util::err "Please specify protocol with -p; e.g. -p tcp, -p udp"
-  [ -z "${_destport}" ] && [ -n "${_srcport}" ] && _destport="${_srcport}"
+  [ -z "${_recvport}" ] && [ -z "${_addr}" ] && util::err "Please redirect by specifying a port (-r 80 -p tcp) or an address (-a my.second.ip.addr)"
+  [ ! -z "${_recvport}" ] && [ -z "${_proto}" ] && util::err "Please specify protocol with -p; e.g. -p tcp, -p udp"
+  [ -z "${_destport}" ] && [ -n "${_recvport}" ] && _destport="${_recvport}"
 
   ## Constructing redirection rule
   _rdrbegin="rdr pass on ${_interface} inet"
   [ ! -z "${_proto}" ] && _rdrproto="proto ${_proto}"
   _rdrfrom="from any"
   _rdrtoaddr="to ${_addr}"
-  [ -n "${_srcport}" ] && _rdrtoport="port ${_srcport}"
+  [ -n "${_recvport}" ] && _rdrtoport="port ${_recvport}"
   _rdrdestaddr="-> ${_jaddr}"
   [ -n "${_destport}" ] && _rdrdestport="port ${_destport}"
   _rule="${_rdrbegin} ${_rdrproto} ${_rdrfrom} ${_rdrtoaddr} ${_rdrtoport} ${_rdrdestaddr} ${_rdrdestport}"
