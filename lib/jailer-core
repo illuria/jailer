@@ -71,9 +71,9 @@ jail::destroy(){
 jail::_destroyzfs(){
   local _name="$1"
   sleep 2
-  zfs list -Hpo name ${JAILER_ZFS_DATASET}/${_name}@base && ( zfs destroy ${JAILER_ZFS_DATASET}/${_name}@base || jail::destroyzfs ${_name} ) || echo "snapshot does not exist"
+  zfs list -Hpo name ${JAILER_ZFS_DATASET}/${_name}@base && ( zfs destroy ${JAILER_ZFS_DATASET}/${_name}@base || jail::_destroyzfs ${_name} ) || echo "snapshot does not exist"
   sleep 2
-  zfs list -Hpo name ${JAILER_ZFS_DATASET}/${_name}      && ( zfs destroy ${JAILER_ZFS_DATASET}/${_name}      || jail::destroyzfs ${_name} ) || echo "dataset does not exist"
+  zfs list -Hpo name ${JAILER_ZFS_DATASET}/${_name}      && ( zfs destroy ${JAILER_ZFS_DATASET}/${_name}      || jail::_destroyzfs ${_name} ) || echo "dataset does not exist"
 }
 
 jail::extract(){
