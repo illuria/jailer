@@ -171,11 +171,52 @@ echo 'net.inet.ip.forwarding=1' >> /etc/sysctl.conf
 service sysctl restart
 ```
 
+#### NAT with PF
+
+Jailer has `nat` subcommand that automates adding NAT rules into your PF configuration.
+
+First add the following at the top of your `pf.conf` configuration's `nat` section
+
+```
+include "/etc/jail.conf.d/.pf.nat.jailer.conf"
+```
+And then execute
+
+```
+touch /etc/jail.conf.d/.pf.nat.jailer.conf
+```
+
+To add a NAT rule use the `nat add` subcommand. Here's how to NAT the traffic of jail `www0` on `vtnet0` interface
+
+```
+jailer nat add -i vtnet0 www0
+```
+
+To use a specific outbound IP address use the `-a` flag
+
+```
+jailer nat add -i vtnet0 -a my.second.ip.addr www0
+```
+
+To list all NAT rules use the `nat list` subcommand
+
+```
+# jailer nat list
+nat on vtnet0 inet from 10.0.0.10 to any -> my.second.ip.addr #www0
+nat on vtnet0 inet from 10.0.0.80 to any -> (vtnet0:0) #www_prod
+```
+
+To delete a NAT rule use the `nat del` subcommand
+
+```
+jailer nat del www0
+```
+
 #### Port Redirection with PF
 
-Jailer has `rdr` command that automates port and address redirection
+Jailer has `rdr` subcommand that automates port and address redirection
 
-First, add the following at the top of your `pf.conf` configuration
+First add the following at the top of your `pf.conf` configuration's `rdr` section
 
 ```
 include "/etc/jail.conf.d/.pf.rdr.jailer.conf"
