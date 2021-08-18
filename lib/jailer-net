@@ -101,7 +101,6 @@ net::nat_list(){
   exit 0
 }
 
-
 net::nat_add() {
   local _name _addr _interface
 
@@ -130,4 +129,16 @@ net::nat_add() {
   ( echo ${_rule} | pfctl -nvf- ) && \
   echo "${_rule} #${_name}" >> /etc/jail.conf.d/.pf.nat.jailer.conf && \
   /usr/sbin/service pf reload
+}
+
+net::nat_del(){
+  local _jail
+
+  shift
+
+  _jail="${1}"
+  [ -z "${_jail}" ] && help::nat
+  jail::checkexists ${_jail}
+  sed -i ".$(date +%s)" -e "/#${_jail}\$/d" /etc/jail.conf.d/.pf.nat.jailer.conf && \
+    /usr/sbin/service pf reload && exit 0
 }
