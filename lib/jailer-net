@@ -92,6 +92,16 @@ net::rdr_del() {
     /usr/sbin/service pf reload && exit 0
 }
 
+net::nat_list(){
+  shift
+  _name="$1"
+  [ -z "${_name}" ] && cat /etc/jail.conf.d/.pf.nat.jailer.conf && exit 0
+  jail::checkexists ${_name}
+  grep "#${_name}\$" /etc/jail.conf.d/.pf.nat.jailer.conf
+  exit 0
+}
+
+
 net::nat_add() {
   local _name _addr _interface
 
