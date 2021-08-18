@@ -1,6 +1,7 @@
 #!/bin/sh
 
 net::rdr_parse() {
+  [ $# -eq 0 ] && help::rdr
   case "${1}" in
     list)   net::rdr_list "$@"  ;;
     add)    net::rdr_add "$@"   ;;
@@ -9,6 +10,7 @@ net::rdr_parse() {
 }
 
 net::nat_parse(){
+  [ $# -eq 0 ] && help::nat
   case "${1}" in
     list)   net::nat_list "$@"  ;;
     add)    net::nat_add "$@"   ;;

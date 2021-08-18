@@ -32,6 +32,16 @@ EOT
   exit 0
 }
 
+help::nat(){
+  cat << EOT
+Usage jailer nat ...
+  list [jail]
+  add -i interface [ -a my.second.ip.addr ] jail
+  del jail
+EOT
+  exit 0
+}
+
 help::rdr(){
   cat << EOT
 Usage: jailer rdr ...

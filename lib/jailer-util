@@ -30,6 +30,9 @@ Usage: jailer ...
    exec -f /path/to/script.sh name
    console name
    snap jail[@name]
+   nat list [jail]
+   nat add -i interface [ -a my.second.ip.addr ] jail
+   nat del jail
    rdr list [jail]
    rdr add -i interface [ -a my.second.ip.addr ] [ -p tcp|udp -r recvport [ -d destport ] ] jail
    rdr del -j jail [ -i rule_index | -f ] ; -f deletes all rules for jail
