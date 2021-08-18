@@ -43,7 +43,7 @@ jailer init
 
 ## Usage
 
-### Networking
+### Basic Networking
 
 First you will need to create a switch
 
@@ -69,6 +69,7 @@ To list all bootstrapped base systems run the `bootstrap` subcommand without arg
 # jailer bootstrap
 12.2-RELEASE
 ```
+
 ### Creating Jails
 
 To create a new jail use the `create` subcommand
@@ -126,7 +127,109 @@ will make a named snapshot to use later.
 Now we will clone our snapshot
 
 ```
-jailer create -s www0@server_ready -b bridge0 -d srv.illuriasecurity.com -a 10.0.0.81 www_prod
+jailer create -s www0@server_ready -b bridge0 -d srv.illuriasecurity.com -a 10.0.0.80 www_prod
 ```
 
+### Listing Jails
+
+To list all your Jails use the `list` subcommand
+
+```
+# jailer list
+NAME      STATE   JID  HOSTNAME                          IPv4
+www0      Active  1    www0.dev.mydomain.com             10.0.0.10/24
+www_prod  Active  2    www_prod.srv.illuriasecurity.com  10.0.0.80/24
+```
+
+It can also provide a JSON output with the `-j` flag
+
+```
+# jailer list -j | jq
+[
+  {
+    "name": "www0",
+    "state": "Active",
+    "jid": "1",
+    "hostname": "www0.dev.mydomain.com",
+    "ipv4": "10.0.0.10/24"
+  },
+  {
+    "name": "www_prod",
+    "state": "Active",
+    "jid": "2",
+    "hostname": "www_prod.srv.illuriasecurity.com",
+    "ipv4": "10.0.0.80/24"
+  }
+]
+```
+
+### Advanced Networking
+First, please enable routing.
+
+```
+echo 'net.inet.ip.forwarding=1' >> /etc/sysctl.conf
+service sysctl restart
+```
+
+#### Port Redirection with PF
+
+Jailer has `rdr` command that automates port and address redirection
+
+First, add the following at the top of your `pf.conf` configuration
+
+```
+include "/etc/jail.conf.d/.pf.rdr.jailer.conf"
+```
+And then execute
+
+```
+touch /etc/jail.conf.d/.pf.rdr.jailer.conf
+```
+
+To add a port redirection use the `rdr` subcommand. Here's how to redirect the traffic coming to the `vtnet0` interface over TCP port 80 to the `www0` Jail
+
+```
+jailer rdr add -i vtnet0 -p tcp -r 80 www0
+```
+
+To understand the flags; `-i` is the external interface, `-p` is the protocol (TCP/UDP) and `-r` is the receiving port. If no destination port `-d` is defined then it will be set as the source port.
+
+To redirect all the packets coming to an address (i.e. your secondary IP) you can use the `-a` address flag
+
+```
+jailer rdr add -i vtnet0 -a my.second.ip.addr www_prod
+```
+
+You can also mix these flags! To redirect all the traffic coming to `my.other.ip.addr` on the `vtnet0` interface over TCP port 8080 to TCP port 80 of the `www0` Jail
+
+```
+jailer rdr add -i vtnet0 -a my.other.ip.addr -p tcp -r 8080 -d 80 www0
+```
+
+> Be careful not to lock yourself out! For example, don't redirect the host's SSH port by accident unless you know what you're doing.
+
+To list all the redirection created by Jailer, use the `rdr list` subcommand
+
+```
+# jailer rdr list
+rdr pass on vtnet0 inet proto tcp from any to  port 80 -> 10.0.0.10 port 80 #1 www0
+rdr pass on vtnet0 inet  from any to my.second.ip.addr  -> 10.0.0.80  #2 www_prod
+rdr pass on vtnet0 inet proto tcp from any to my.other.ip.addr port 8080 -> 10.0.0.10 port 80 #3 www0
+```
+
+To delete a port redirection, we can use the index of the rule (next to `#`) or the jail name.
+
+To delete rule `#2` for the `www_prod` Jail, use the `rdr del` subcommand
+
+```
+jailer rdr del -j www_prod -i 2
+```
+
+To delete all the rules for the `www0` Jail, we use the flush `-f` flag
+
+```
+jailer rdr del -j www0 -f
+```
+
+> After each deletion/flush, Jailer keeps the old config file in `/etc/jail.conf.d/` as `/etc/jail.conf.d/.pf.rdr.jailer.conf.TIMESTAMP` in case you flush by accident. This will become configurable in the future.
 
