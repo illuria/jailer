@@ -24,7 +24,6 @@ net::rdr_list(){
   [ -z "${_name}" ] && cat /etc/jail.conf.d/.pf.rdr.jailer.conf && exit 0
   jail::checkexists ${_name}
   grep " ${_name}\$" /etc/jail.conf.d/.pf.rdr.jailer.conf
-  exit 0
 }
 
 net::rdr_add() {
@@ -86,12 +85,12 @@ net::rdr_del() {
   done
   shift $((OPTIND - 1))
 
-  [ -z "${_jail}" ] && util::err "Please specify jail with -j jailname" && exit 0
+  [ -z "${_jail}" ] && util::err "Please specify jail with -j jailname"
   jail::checkexists "${_jail}"
   [ -n "${_index}" ] && sed -i ".$(date +%s)" -e "/#${_index} ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
-    /usr/sbin/service pf reload && exit 0
+    /usr/sbin/service pf reload
   [ -n "${_flush}" ] && sed -i ".$(date +%s)" -e "/ ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
-    /usr/sbin/service pf reload && exit 0
+    /usr/sbin/service pf reload
 }
 
 net::nat_list(){
@@ -100,7 +99,6 @@ net::nat_list(){
   [ -z "${_name}" ] && cat /etc/jail.conf.d/.pf.nat.jailer.conf && exit 0
   jail::checkexists ${_name}
   grep "#${_name}\$" /etc/jail.conf.d/.pf.nat.jailer.conf
-  exit 0
 }
 
 net::nat_add() {
@@ -142,5 +140,5 @@ net::nat_del(){
   [ -z "${_jail}" ] && help::nat
   jail::checkexists ${_jail}
   sed -i ".$(date +%s)" -e "/#${_jail}\$/d" /etc/jail.conf.d/.pf.nat.jailer.conf && \
-    /usr/sbin/service pf reload && exit 0
+    /usr/sbin/service pf reload
 }
