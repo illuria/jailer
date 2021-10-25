@@ -50,6 +50,7 @@ First you will need to create a switch
 ```console
 sysrc cloned_interfaces="bridge0"
 sysrc ifconfig_bridge0="inet 10.0.0.1 netmask 0xffffff00 descr jails-bridge"
+service netif start bridge0
 ```
 
 ### Bootstraping the base system
