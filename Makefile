@@ -1,27 +1,19 @@
 #
 # jailer Makefile
 #
+.POSIX:
 
-PREFIX?=/usr/local
-BINDIR=$(DESTDIR)$(PREFIX)/sbin
-LIBDIR=$(DESTDIR)$(PREFIX)/lib/jailer
-
-CP=/bin/cp
-INSTALL=/usr/bin/install
-LN=/bin/ln
-MKDIR=/bin/mkdir
-
-PROG=jailer
-MAN=$(PROG).8
+include config.mk
 
 install:
-	$(MKDIR) -p $(BINDIR)
-	$(INSTALL) -m 544 $(PROG) $(BINDIR)/
-
+	$(INSTALL) -m 544 -C $(PROG) $(BINDIR)/
 	$(MKDIR) -p $(LIBDIR)/init
-	$(INSTALL) lib/init/* $(LIBDIR)/init/
-	$(MKDIR) -p $(LIBDIR)
-	$(INSTALL) lib/jailer-* $(LIBDIR)/
+	$(INSTALL) -C lib/init/* $(LIBDIR)/init/
+	$(INSTALL) -C lib/jail*  $(LIBDIR)/
+
+deinstall:
+	$(RM) $(LIBDIR)
+	$(RM) $(BINDIR)/$(PROG)
 
 .MAIN: clean
 clean: ;
