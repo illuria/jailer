@@ -1,5 +1,7 @@
 #!/bin/sh
 
+progname=${0##*/}
+
 if [ -e "./lib/jailer-core" ]; then
     LIB="./lib"
 elif [ -e "/usr/local/lib/jailer" ]; then
