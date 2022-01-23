@@ -6,5 +6,3 @@ dataset::list(){
 
   printf "${_format}\n" "NAME" "PATH"
 }
-
-
