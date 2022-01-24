@@ -5,3 +5,9 @@ jail::exception::bootstrap() {
   rm ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null 2>&1
   util::err "bootstrap failed, try again later"
 }
+
+jail::exception::create() {
+  jail::destroy ${_name}        > /dev/null 2>&1
+  ifconfig epair${_id}b destroy > /dev/null 2>&1
+  util::err "jail creation failed"
+}

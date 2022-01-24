@@ -87,31 +87,40 @@ jail::get_next_id(){
 
 jail::start(){
   local _name="$1"
-  jail -f /etc/jail.conf.d/${_name}.conf -c ${_name}
+  if !(jail -f /etc/jail.conf.d/${_name}.conf -c ${_name} > /dev/null 2>&1); then
+    return 1
+  fi
+  echo "${_name}: started"
 }
 
 jail::stop(){
   local _name="$1"
-  jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1 && echo "Jail ${_name} stopped"
+  jail::checkexists ${_name}
+  jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1
+  echo "${_name}: stopped"
 }
 
 jail::destroy(){
   local _name="$1"
 
-  #net::rdr_del del -j ${_name} -f &&
-  #net::nat_del del ${_name} &&
-  jail::stop ${_name}
+  if jls -j ${_name} > /dev/null 2>&1; then
+    jail::stop ${_name}
+  fi
+
+  net::rdr_del del -j ${_name} -f > /dev/null 2>&1 && 
+    net::nat_del del ${_name}     > /dev/null 2>&1
 
   jail::_destroyzfs ${_name}
 
-  rm /etc/jail.conf.d/${_name}.conf &&
-  sysrc jail_list-="${_name}"
+  rm /etc/jail.conf.d/${_name}.conf > /dev/null 2>&1
+  sysrc jail_list-="${_name}"       > /dev/null 2>&1
+  echo "${_name}: destroyed"
 }
 
 jail::_destroyzfs(){
   local _name="$1"
   sleep 2
-  zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util:err "ZFS Destroy error, please check dataset dependency"
+  zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
 }
 
 jail::bootstrap::extract(){
@@ -186,14 +195,22 @@ jail::create(){
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
 
+  # Sanity Checks
+  if [ -e /etc/jail.conf.d/${_name}.conf ]; then
+    util::err "${_name} already exists"
+  fi
+  if [ ! -d ${jailer_dir}/bootstrap/${_version} ]; then
+    util::err "${_version} does not exist, try bootstrapping first"
+  fi
+
   # First, we check for Gateway and Netmask; If not set, we get it from the bridge
   [ -z "${_gw}" ]       && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
   [ -z "${_netmask}" ]  && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
 
   # If address is set to DHCP then we generate a MAC address and set devfs_ruleset
-  [ ${_addr} = "DHCP" ] &&
-  _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{6}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/58:9c:fc:/;') &&
-  _netvars=$(cat <<EOF
+  if [ ${_addr} = "DHCP" ]; then
+    _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{6}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/58:9c:fc:/;')
+    _netvars=$(cat <<EOF
     devfs_ruleset = 10;
 EOF
 )
@@ -232,15 +249,21 @@ ${_netvars}
 EOF
 
   # ZFS clone / snap
-  [ ! -z ${_snap} ]    && zfs clone ${JAILER_ZFS_DATASET}/${_snap} ${JAILER_ZFS_DATASET}/${_name} || ( zfs send ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILER_ZFS_DATASET}/${_name} )
+  if [ ! -z ${_snap} ]; then
+    zfs clone ${JAILER_ZFS_DATASET}/${_snap} ${JAILER_ZFS_DATASET}/${_name}
+  else
+    (zfs send ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base |
+     zfs recv ${JAILER_ZFS_DATASET}/${_name})
+  fi
 
   # Set the resolver
   cp /etc/resolv.conf "${_path}/etc/resolv.conf"
-  [ ! -z ${_resolver} ] && echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+  if [ ! -z ${_resolver} ]; then
+    echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+  fi
 
   # Set MAC address if using DHCP
-  if [ ${_addr} = "DHCP" ];
-  then
+  if [ ${_addr} = "DHCP" ]; then
     echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
     sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP"
   # Otherwise use the provided address
@@ -250,18 +273,29 @@ EOF
   fi
 
   # Set silent if required
-  [ ! -z ${_silent} ]  && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss"
+  if [ ! -z ${_silent} ]; then
+    sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" \
+      sendmail_enable="NONE" syslogd_flags="-ss"
+  fi
 
   # Copy content if provided
-  [ ! -z ${_content} ] && cp -a ${_content} ${_path}/tmp/
+  if [ ! -z ${_content} ]; then
+    cp -a ${_content} ${_path}/tmp/
+  fi
 
-  sysrc -q jail_list+="${_name}"
-  jail::start ${_name}
-  [ ! -z ${_script} ]  && jail::exec -f ${_script} ${_name} || true
+  sysrc -q jail_list+="${_name}" > /dev/null 2>&1
+  if !(jail::start ${_name}); then
+    jail::exception::create
+  fi
+
+  if [ ! -z ${_script} ]; then
+    jail::exec -f ${_script} ${_name}
+  fi
 }
 
 jail::console() {
   local _name="$1"
+  jail::checkexists ${_name}
   jexec -l ${_name} /bin/tcsh
 }
 
@@ -276,6 +310,7 @@ jail::exec() {
   done
   shift $((OPTIND - 1))
   _name="$1"
+  jail::checkexists ${_name}
   jexec -l ${_name} /bin/sh -s < ${_script}
 }
 
@@ -285,7 +320,11 @@ jail::edit() {
   [ $# -lt 1 ] && help::edit
 
   local _name="$1"
-  ${EDITOR} "/etc/jail.conf.d/${_name}.conf"
+  local _file="/etc/jail.conf.d/${_name}.conf"
+  if [ ! -e ${_file} ]; then
+    util::err "Configuration file for ${_name} does not exist"
+  fi
+  ${EDITOR} ${_file}
 }
 
 jail::checkexists(){
