@@ -21,8 +21,14 @@ net::nat_parse(){
 net::rdr_list(){
   shift
   _name="$1"
-  [ -z "${_name}" ] && cat /etc/jail.conf.d/.pf.rdr.jailer.conf && exit 0
-  grep " ${_name}\$" /etc/jail.conf.d/.pf.rdr.jailer.conf
+  if [ -z "${_name}" ]; then
+    cat /etc/jail.conf.d/.pf.rdr.jailer.conf
+    exit 0
+  fi
+  if !(grep " ${_name}\$" /etc/jail.conf.d/.pf.rdr.jailer.conf); then
+    echo "No rule found for ${_name}"
+    exit 1
+  fi
 }
 
 net::rdr_add() {
@@ -84,18 +90,29 @@ net::rdr_del() {
   done
   shift $((OPTIND - 1))
 
-  [ -z "${_jail}" ] && util::err "Please specify jail with -j jailname"
-  [ -n "${_index}" ] && sed -i ".$(date +%s)" -e "/#${_index} ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
-    /usr/sbin/service pf reload
-  [ -n "${_flush}" ] && sed -i ".$(date +%s)" -e "/ ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
-    /usr/sbin/service pf reload
+  if grep ${_jail} /etc/jail.conf.d/.pf.rdr.jailer.conf; then
+    [ -z "${_jail}" ] && util::err "Please specify jail with -j jailname"
+    [ -n "${_index}" ] && sed -i ".$(date +%s)" -e "/#${_index} ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
+      /usr/sbin/service pf reload
+    [ -n "${_flush}" ] && sed -i ".$(date +%s)" -e "/ ${_jail}\$/d" /etc/jail.conf.d/.pf.rdr.jailer.conf && \
+      /usr/sbin/service pf reload
+  else
+    echo "No rule for ${_jail}"
+    exit 1
+  fi
 }
 
 net::nat_list(){
   shift
   _name="$1"
-  [ -z "${_name}" ] && cat /etc/jail.conf.d/.pf.nat.jailer.conf && exit 0
-  grep "#${_name}\$" /etc/jail.conf.d/.pf.nat.jailer.conf
+  if [ -z "${_name}" ]; then
+    cat /etc/jail.conf.d/.pf.nat.jailer.conf
+    exit 0
+  fi
+  if !(grep "#${_name}\$" /etc/jail.conf.d/.pf.nat.jailer.conf); then
+    echo "No rule for ${_name}"
+    exit 1
+  fi
 }
 
 net::nat_add() {
@@ -135,6 +152,11 @@ net::nat_del(){
 
   _jail="${1}"
   [ -z "${_jail}" ] && help::nat
-  sed -i ".$(date +%s)" -e "/#${_jail}\$/d" /etc/jail.conf.d/.pf.nat.jailer.conf && \
-    /usr/sbin/service pf reload
+  if grep ${_jail} /etc/jail.conf.d/.pf.nat.jailer.conf; then
+    sed -i ".$(date +%s)" -e "/#${_jail}\$/d" /etc/jail.conf.d/.pf.nat.jailer.conf && \
+      /usr/sbin/service pf reload
+  else
+    echo "No rule for ${_jail}"
+    exit 1
+  fi
 }
