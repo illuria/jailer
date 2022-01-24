@@ -1,6 +1,5 @@
 #!/bin/sh
 
-
 jail::list(){
   local _json _format _style="text"
   local _hostname _ipaddr _state _jid _gateway
@@ -115,29 +114,46 @@ jail::_destroyzfs(){
   zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util:err "ZFS Destroy error, please check dataset dependency"
 }
 
-jail::extract(){
+jail::bootstrap::extract(){
   local version=$1
   mkdir -p ${jailer_dir}/bootstrap/dist-files
-  [ -z ${FreeBSD_mirror} ] && FreeBSD_mirror="https://download.freebsd.org/ftp"
-  ( [ -e ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ] && jail::_checksum ${_version} ) ||
-  ( fetch -o ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz && jail::_checksum ${_version} )
-  tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C ${jailer_dir}/bootstrap/${_version}/
+  : ${FreeBSD_mirror:="https://download.FreeBSD.org/ftp"}
+  if ! ([ -e ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ] &&   \
+        jail::bootstrap::_checksum ${_version}); then
+    if ! (fetch -o ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz  \
+	${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz &&       \
+	jail::bootstrap::_checksum ${_version}); then
+      jail::exception::bootstrap
+    fi
+  fi
+  if [ ! -d ${jailer_dir}/bootstrap/${_version} ]; then
+    tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C \
+      ${jailer_dir}/bootstrap/${_version}/
+  fi
 }
 
-jail::_checksum(){
+jail::bootstrap::_checksum(){
   local _version=$1
-  sha256 -qc $(fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST | grep base.txz | cut -f 2) ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null
+  sha256 -qc \
+    $(fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST |
+    grep base.txz | cut -f 2) ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz \
+    > /dev/null
 }
-
 
 jail::bootstrap(){
-  [ "$#" -eq "0" ] && zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/bootstrap | sed -e "s|${JAILER_ZFS_DATASET}/bootstrap/||" -e 's/@base$//' && exit 0
+  if [ $# -eq 0 ]; then
+    zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/bootstrap |
+      awk '{ sub(/.*bootstrap\//,""); sub(/@.*$/,""); print }'
+    exit 0
+  elif [ $# -eq 1 ]; then
+    local _version="${1}"
 
-  local _version="${1}"
-
-  zfs create -p ${JAILER_ZFS_DATASET}/bootstrap/${_version}
-  jail::extract ${_version}
-  zfs snap ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base
+    zfs create -p ${JAILER_ZFS_DATASET}/bootstrap/${_version}
+    jail::bootstrap::extract ${_version}
+    zfs snap ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base
+  else
+    util::err "bootstrap takes only one argument at a time"
+  fi
 }
 
 jail::create(){
@@ -264,7 +280,7 @@ jail::exec() {
 }
 
 jail::edit() {
-  [ -z "${EDITOR}" ] && EDITOR=vi
+  : ${EDITOR:=vi}
 
   [ $# -lt 1 ] && help::edit
 
