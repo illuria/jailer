@@ -53,14 +53,14 @@ jail::start(){
 
 jail::stop(){
   local _name="$1"
-  jail -f /etc/jail.conf.d/${_name}.conf -r ${_name}
+  jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1 && echo "Jail ${_name} stopped"
 }
 
 jail::destroy(){
   local _name="$1"
 
-  net::rdr_del del -j ${_name} -f &&
-  net::nat_del del ${_name} &&
+  #net::rdr_del del -j ${_name} -f &&
+  #net::nat_del del ${_name} &&
   jail::stop ${_name}
 
   jail::_destroyzfs ${_name}
@@ -108,13 +108,15 @@ jail::create(){
   local _gw _netmask
   local _script _content
 
-  while getopts :a:b:c:d:f:ns:r: _opt; do
+  while getopts :a:b:c:d:f:g:m:ns:r: _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _bridge="${OPTARG}" ;;
       c) _content="${OPTARG}" ;;
       d) _domain="${OPTARG}" ;;
       f) _script="${OPTARG}" ;;
+      g) _gw="${OPTARG}" ;;
+      m) _netmask="${OPTARG}" ;;
       n) _silent="yes" ;;
       r) _version="${OPTARG}" ;;
       s) _snap="${OPTARG}" ;;
@@ -126,8 +128,8 @@ jail::create(){
   _name="${1:-$(uuidgen)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
-  _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
-  _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
+  [ -z "${_gw}" ]       && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
+  [ -z "${_netmask}" ]  && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
 
   [ ${_addr} = "DHCP" ] &&
   _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{8}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/de:ad:/;')

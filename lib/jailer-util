@@ -22,7 +22,7 @@ Usage: jailer ...
    init
    help subcommand
    bootstrap [version]
-   create [-r version | -s snap] [-b bridge] [-n | --no-noise] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
+   create [-r version | -s snap] [-b bridge] [-n | --no-noise] [-d domain] [-g gateway -m netmask] [-a addr] [-f exec.sh] [-c dir/file] name
    destroy name
    list
    start [name ...]

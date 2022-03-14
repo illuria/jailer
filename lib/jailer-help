@@ -12,13 +12,15 @@ help::parse_help(){
 
 help::create(){
   cat << EOT
-Usage:  jailer create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-a addr] [-f exec.sh] [-c dir/file] name
+Usage:  jailer create  [-r version | -s snap] [-b bridge] [-n] [-d domain] [-g gateway -m netmask] [-a addr] [-f exec.sh] [-c dir/file] name
 Options:
   -r version    : FreeBSD-version as base of Jail
   -s snapshot   : Clone from snapshot as base of Jail
   -b bridge     : Attach to bridge
   -n            : Make Jail less noisy
   -d domain     : Set domain in Jail
+  -g gateway    : Gateway
+  -m netmask    : Netmask (if specifying a Gateway)
   -a addr       : Use addr as address or DHCP to use dhclient in Jail
   -f exec.sh    : Execute exec.sh in Jail after creation
   -c dir/file   : Copy dir/file into /tmp of Jail
