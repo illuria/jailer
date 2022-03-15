@@ -196,7 +196,7 @@ EOF
 
   sysrc -q jail_list+="${_name}"
   jail::start ${_name}
-  [ ! -z ${_script} ]  && jail::exec -f ${_script} ${_name}
+  [ ! -z ${_script} ]  && jail::exec -f ${_script} ${_name} || true
 }
 
 jail::console() {
