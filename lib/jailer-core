@@ -36,6 +36,45 @@ jail::list(){
   } | ( [ ! -z ${_json} ] && sed -e "s/}{/},{/g" || column -ts^ )
 }
 
+jail::info(){
+  local _json _format _style="text"
+  local _hostname _ipaddr _state _jid _gateway _netmask
+
+  while getopts j _opt; do
+    case ${_opt} in
+      j) _json="json" ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _jname="${1}"
+
+  _jformact='Name: {:name}\nState: {:state}\nJID: {:jid}\nHostname: {:hostname}\nIPv4: {:ipv4}\nNetmask: {:netmask}\nGateway: {:gateway}\n'
+  _jformstp='Name: {:name}\nState: {:state}\n'
+
+  if sysrc -n jail_list | tr ' ' '\n' | grep "^${_jname}$" > /dev/null 2>&1 ; then
+    if jls -j ${_jname} > /dev/null 2>&1 ; then
+      _hostname=$(jexec ${_jname} hostname)
+      _jid=$(jls -j ${_jname} jid)
+      _ipaddr=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
+      _gateway=$(jexec ${_jname} route -n get default | awk '/gateway/ {print $2}')
+      _netmask=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/netmask/ {print $4}')
+      _state="Active"
+      _format="${_jformact}"
+    else
+      _state="Stopped"
+      _format="${_jformstp}"
+    fi
+  else
+    _state="Not found"
+    _format="${_jformstp}"
+  fi
+
+  [ ! -z ${_json} ] && _style="json" && printf "{"
+  xo --style "${_style}" "${_format}" "${_jname}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}" "${_netmask}" "${_gateway}"
+  [ ! -z ${_json} ] && _style="json" && printf "}"
+}
+
 
 jail::get_next_id(){
   expr $(

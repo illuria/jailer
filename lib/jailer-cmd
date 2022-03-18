@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="bootstrap,create,console,destroy,edit,exec,help,init,list,nat,rdr,snap,start,startall,stop,stopall,usage,version"
+CMD_VALID_LIST="bootstrap,create,console,destroy,edit,exec,help,info,init,list,nat,rdr,snap,start,startall,stop,stopall,usage,version"
 
 cmd::parse_init(){
     local _cmd
@@ -29,6 +29,7 @@ cmd::parse(){
         edit)         jail::edit "$@"        ;;
         exec)         jail::exec "$@"        ;;
         help)         help::parse_help "$@"  ;;
+        info)         jail::info "$@"        ;;
         init)         init::jailconf         ;;
         list)         jail::list "$@"        ;;
         nat)          net::nat_parse "$@"    ;;
