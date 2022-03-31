@@ -21,7 +21,7 @@ jail::list(){
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
           _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
-          _gateway=$(jexec ${_jname} route -n get default | awk '/gateway/ {print $2}')
+          _gateway=$(jexec ${_j} route -n get default | awk '/gateway/ {print $2}')
           _state="Active"
           _jid=$(jls -j ${_j} jid)
           _format="${_jformact}"
