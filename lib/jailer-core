@@ -3,7 +3,7 @@
 
 jail::list(){
   local _json _format _style="text"
-  local _hostname _ipaddr _state _jid
+  local _hostname _ipaddr _state _jid _gateway
 
   while getopts j _opt; do
     case ${_opt} in
@@ -12,15 +12,16 @@ jail::list(){
   done
   shift $((OPTIND - 1))
 
-  _jformact='{:name}^{:state}^{:jid}^{:hostname}^{:ipv4}\n'
+  _jformact='{:name}^{:state}^{:jid}^{:hostname}^{:ipv4}^{:gateway}\n'
   _jformstp='{:name}^{:state}\n'
   {
-    [ ! -z ${_json} ]  && printf '[' || xo "${_jformact}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4"
+    [ ! -z ${_json} ]  && printf '[' || xo "${_jformact}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4" "GW"
       for _j in $(sysrc -n jail_list);
       do
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
           _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
+          _gateway=$(jexec ${_jname} route -n get default | awk '/gateway/ {print $2}')
           _state="Active"
           _jid=$(jls -j ${_j} jid)
           _format="${_jformact}"
@@ -29,7 +30,7 @@ jail::list(){
           _format="${_jformstp}"
         fi
         [ ! -z ${_json} ] && _style="json" && printf "{"
-        xo --style "${_style}" "${_format}" "${_j}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}"
+        xo --style "${_style}" "${_format}" "${_j}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}" "${_gateway}"
         [ ! -z ${_json} ] && printf "}"
       done
     [ ! -z ${_json} ] && printf ']\n'
