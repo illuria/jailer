@@ -143,17 +143,18 @@ jail::bootstrap(){
 jail::create(){
   local _name _id _path
   local _version=${UNAME_r} _snap
-  local _addr _bridge="bridge0" _domain=${HOSTNAME}
+  local _addr _gw _netmask _resolver
+  local _bridge="bridge0" _domain=${HOSTNAME}
   local _silent
-  local _gw _netmask
   local _script _content
 
-  while getopts :a:b:c:d:f:g:m:ns:r: _opt; do
+  while getopts :a:b:c:d:e:f:g:m:ns:r: _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _bridge="${OPTARG}" ;;
       c) _content="${OPTARG}" ;;
       d) _domain="${OPTARG}" ;;
+      e) _resolver="${OPTARG}" ;;
       f) _script="${OPTARG}" ;;
       g) _gw="${OPTARG}" ;;
       m) _netmask="${OPTARG}" ;;
@@ -168,31 +169,16 @@ jail::create(){
   _name="${1:-$(uuidgen)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
+
+  # First, we check for Gateway and Netmask; If not set, we get it from the bridge
   [ -z "${_gw}" ]       && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
   [ -z "${_netmask}" ]  && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
 
+  # If address is set to DHCP then we generate a MAC address and set devfs_ruleset
   [ ${_addr} = "DHCP" ] &&
-  _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{8}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/de:ad:/;')
-  _netexec=$(cat <<EOF
-    exec.start     += "/sbin/ifconfig epair\${id}b ether ${_macaddr} up";
-    exec.start     += "/sbin/dhclient epair\${id}b";
-EOF
-) &&
+  _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{6}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/58:9c:fc:/;') &&
   _netvars=$(cat <<EOF
     devfs_ruleset = 10;
-EOF
-)
-
-  [  ${_addr} != "DHCP" ] &&
-  _netvars=$(cat <<EOF
-    \$ipaddr = "${_addr}";
-    \$mask   = "${_netmask}";
-    \$gw     = "${_gw}";
-EOF
-) &&
-  _netexec=$(cat <<EOF
-    exec.start     += "/sbin/ifconfig epair\${id}b \${ipaddr} netmask \${mask} up";
-    exec.start     += "/sbin/route add default \${gw}";
 EOF
 )
 
@@ -215,7 +201,6 @@ ${_netvars}
     exec.prestart  += "ifconfig \${bridge} addm epair\${id}a up";
 
     exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
-${_netexec}
     exec.start     += "/bin/sh /etc/rc";
 
     exec.prestop    = "ifconfig epair\${id}b -vnet \${name}";
@@ -230,8 +215,28 @@ ${_netexec}
 }
 EOF
 
+  # ZFS clone / snap
   [ ! -z ${_snap} ]    && zfs clone ${JAILER_ZFS_DATASET}/${_snap} ${JAILER_ZFS_DATASET}/${_name} || ( zfs send ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base | zfs recv ${JAILER_ZFS_DATASET}/${_name} )
+
+  # Set the resolver
+  cp /etc/resolv.conf "${_path}/etc/resolv.conf"
+  [ ! -z ${_resolver} ] && echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+
+  # Set MAC address if using DHCP
+  if [ ${_addr} = "DHCP" ];
+  then
+    echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
+    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP"
+  # Otherwise use the provided address
+  else
+    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
+    sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
+  fi
+
+  # Set silent if required
   [ ! -z ${_silent} ]  && sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" sendmail_enable="NONE" syslogd_flags="-ss"
+
+  # Copy content if provided
   [ ! -z ${_content} ] && cp -a ${_content} ${_path}/tmp/
 
   sysrc -q jail_list+="${_name}"
