@@ -20,7 +20,7 @@ jail::list(){
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
           _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
-          _gateway=$(jexec ${_j} route -n get default | awk '/gateway/ {print $2}')
+          _gateway=$(jexec ${_j} route -n get default 2>/dev/null | awk '/gateway/ {print $2}')
           _state="Active"
           _jid=$(jls -j ${_j} jid)
           _format="${_jformact}"
@@ -57,7 +57,7 @@ jail::info(){
       _hostname=$(jexec ${_jname} hostname)
       _jid=$(jls -j ${_jname} jid)
       _ipaddr=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
-      _gateway=$(jexec ${_jname} route -n get default | awk '/gateway/ {print $2}')
+      _gateway=$(jexec ${_jname} route -n get default 2>/dev/null | awk '/gateway/ {print $2}')
       _netmask=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/netmask/ {print $4}')
       _state="Active"
       _format="${_jformact}"
@@ -107,9 +107,6 @@ jail::destroy(){
     jail::stop ${_name}
   fi
 
-  net::rdr_del del -j ${_name} -f > /dev/null 2>&1 && 
-    net::nat_del del ${_name}     > /dev/null 2>&1
-
   jail::_destroyzfs ${_name}
 
   rm /etc/jail.conf.d/${_name}.conf > /dev/null 2>&1
@@ -130,12 +127,12 @@ jail::bootstrap::extract(){
   if ! ([ -e ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ] &&   \
         jail::bootstrap::_checksum ${_version}); then
     if ! (fetch -o ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz  \
-	${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz &&       \
-	jail::bootstrap::_checksum ${_version}); then
+       ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz &&       \
+       jail::bootstrap::_checksum ${_version}); then
       jail::exception::bootstrap
     fi
   fi
-  if [ ! -d ${jailer_dir}/bootstrap/${_version} ]; then
+  if [ -d ${jailer_dir}/bootstrap/${_version} ]; then
     tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C \
       ${jailer_dir}/bootstrap/${_version}/
   fi
@@ -151,7 +148,7 @@ jail::bootstrap::_checksum(){
 
 jail::bootstrap(){
   if [ $# -eq 0 ]; then
-    zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/bootstrap |
+    zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/bootstrap 2>/dev/null |
       awk '{ sub(/.*bootstrap\//,""); sub(/@.*$/,""); print }'
     exit 0
   elif [ $# -eq 1 ]; then
@@ -165,27 +162,52 @@ jail::bootstrap(){
   fi
 }
 
+set_eb_vars(){
+  _netvars=$(cat <<EOF
+  vnet;
+  vnet.interface = "epair\${id}b";
+
+  exec.prestart   = "ifconfig epair\${id} create up";
+  exec.prestart  += "ifconfig epair\${id}a up descr vnet-\${name}";
+  exec.prestart  += "ifconfig \${bridge} addm epair\${id}a up";
+
+  exec.poststop   = "ifconfig \${bridge} deletem epair\${id}a";
+  exec.poststop  += "ifconfig epair\${id}a destroy";
+
+  exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
+EOF
+)
+}
+
+set_os_vars(){
+  [ -z "${_addr}" ]   && util::err "non-VNET networking requires IP address"
+  [ -z "${_bridge}" ] && _bridge="lo0"
+  _netvars=$(cat <<EOF
+  interface       = \${bridge};
+  ip4.addr        = ${_addr};
+EOF
+)
+}
+
 jail::create(){
   local _name _id _path
-  local _version=${UNAME_r} _snap
-  local _addr _gw _netmask _resolver
-  local _bridge="bridge0" _domain=${HOSTNAME}
+  local _version _snap
+  local _vnet _addr _gw _netmask _resolver
+  local _bridge _domain=${HOSTNAME}
   local _silent
-  local _script _content
 
-  while getopts :a:b:c:d:e:f:g:m:ns:r: _opt; do
+  while getopts :a:b:c:d:e:f:g:m:nr:s:t: _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _bridge="${OPTARG}" ;;
-      c) _content="${OPTARG}" ;;
       d) _domain="${OPTARG}" ;;
       e) _resolver="${OPTARG}" ;;
-      f) _script="${OPTARG}" ;;
       g) _gw="${OPTARG}" ;;
       m) _netmask="${OPTARG}" ;;
       n) _silent="yes" ;;
       r) _version="${OPTARG}" ;;
       s) _snap="${OPTARG}" ;;
+      t) _vnet="${OPTARG}" ;;
       *) util::usage ;;
     esac
   done
@@ -195,6 +217,8 @@ jail::create(){
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
 
+  [ -z "${_version}" ] && _version=$(jail::bootstrap | sort | tail -1)
+
   # Sanity Checks
   if [ -e /etc/jail.conf.d/${_name}.conf ]; then
     util::err "${_name} already exists"
@@ -203,17 +227,33 @@ jail::create(){
     util::err "${_version} does not exist, try bootstrapping first"
   fi
 
-  # First, we check for Gateway and Netmask; If not set, we get it from the bridge
-  [ -z "${_gw}" ]       && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
-  [ -z "${_netmask}" ]  && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
+  # Check the VNET type, can be none, eb or ng
+  [ "${_vnet}" = "ng" ] && util::err "Netgraph is current not supported, please try 'eb' or 'none' (default)"
 
-  # If address is set to DHCP then we generate a MAC address and set devfs_ruleset
-  if [ ${_addr} = "DHCP" ]; then
+  # First, we check for Gateway and Netmask; If not set, we get it from the bridge
+  if [ "${_vnet}" = "eb" ];
+  then
+    [ -z "${_addr}" ]    && _addr="dhcp"
+    [ -z "${_bridge}" ]  && _bridge="bridge0"
+    [ -z "${_gw}" ]      && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
+    [ -z "${_netmask}" ] && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
+  fi
+
+  if [ "${_vnet}" = "eb" -o "${_vnet}" = "ng" ];
+  then
+    _setmac=1
     _macaddr=$(openssl rand -hex 6 | sed -r 's/^(.{6}).*$/\1/; s/([0-9a-f]{2})/\1:/g; s/:$//; s/^/58:9c:fc:/;')
-    _netvars=$(cat <<EOF
-    devfs_ruleset = 10;
+    _devfsvars=$(cat <<EOF
+  devfs_ruleset   = 10;
 EOF
 )
+  fi
+
+  case "${_vnet}" in
+    eb) set_eb_vars ;;
+    ng) set_ng_vars ;;
+    *)  set_os_vars ;;
+  esac
 
   cat << EOF > /etc/jail.conf.d/${_name}.conf
 # vim: set syntax=sh:
@@ -222,29 +262,17 @@ allow.raw_sockets;
 mount.devfs;
 
 ${_name} {
-    \$id     = "${_id}";
+  \$id             = "${_id}";
+${_devfsvars}
+  \$bridge         = "${_bridge}";
+  \$domain         = "${_domain}";
 ${_netvars}
-    \$bridge = "${_bridge}";
-    \$domain = "${_domain}";
-    vnet;
-    vnet.interface = "epair\${id}b";
+  exec.start     += "/bin/sh /etc/rc";
 
-    exec.prestart   = "ifconfig epair\${id} create up";
-    exec.prestart  += "ifconfig epair\${id}a up descr vnet-\${name}";
-    exec.prestart  += "ifconfig \${bridge} addm epair\${id}a up";
-
-    exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
-    exec.start     += "/bin/sh /etc/rc";
-
-    exec.prestop    = "ifconfig epair\${id}b -vnet \${name}";
-
-    exec.poststop   = "ifconfig \${bridge} deletem epair\${id}a";
-    exec.poststop  += "ifconfig epair\${id}a destroy";
-
-    host.hostname = "\${name}.\${domain}";
-    path = "${_path}";
-    exec.consolelog = "/var/log/jail/\${name}.log";
-    persist;
+  host.hostname   = "\${name}.\${domain}";
+  path            = "${_path}";
+  exec.consolelog = "/var/log/jail/\${name}.log";
+  persist;
 }
 EOF
 
@@ -257,17 +285,18 @@ EOF
   fi
 
   # Set the resolver
-  cp /etc/resolv.conf "${_path}/etc/resolv.conf"
   if [ ! -z ${_resolver} ]; then
     echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+  else
+    cp /etc/resolv.conf "${_path}/etc/resolv.conf"
   fi
 
-  # Set MAC address if using DHCP
-  if [ ${_addr} = "DHCP" ]; then
+  # Set MAC address if using dhcp
+  if [ "${_addr}" = "dhcp" -a "${_vnet}" = "eb" ]; then
     echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
     sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP"
   # Otherwise use the provided address
-  else
+  elif [ "${_vnet}" = "eb" ]; then
     sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
     sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
   fi
@@ -278,18 +307,9 @@ EOF
       sendmail_enable="NONE" syslogd_flags="-ss"
   fi
 
-  # Copy content if provided
-  if [ ! -z ${_content} ]; then
-    cp -a ${_content} ${_path}/tmp/
-  fi
-
   sysrc -q jail_list+="${_name}" > /dev/null 2>&1
   if !(jail::start ${_name}); then
     jail::exception::create
-  fi
-
-  if [ ! -z ${_script} ]; then
-    jail::exec -f ${_script} ${_name}
   fi
 }
 
@@ -297,21 +317,6 @@ jail::console() {
   local _name="$1"
   jail::checkexists ${_name}
   jexec -l ${_name} /bin/tcsh
-}
-
-jail::exec() {
-  local _name _script
-
-  while getopts :f: _opt; do
-    case ${_opt} in
-      f) _script="${OPTARG}" ;;
-      *) util::usage ;;
-    esac
-  done
-  shift $((OPTIND - 1))
-  _name="$1"
-  jail::checkexists ${_name}
-  jexec -l ${_name} /bin/sh -s < ${_script}
 }
 
 jail::edit() {

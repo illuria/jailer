@@ -18,15 +18,8 @@ load_rc_config "jailer"
 cmd::parse_init "$@"
 
 [ -z "$rc_force" ] && ! checkyesno jail_enable && util::err "\$jail_enable is not enabled in /etc/rc.conf!"
+[ -z "${jailer_dir}" ] && util::err "\$jailer_dir is not set in /etc/rc.conf!"
 
-# XXX:
-# I have commented out the following as it could fail owing to the FBSDID tag.
-# As a temporary workaround, I have written a simple `grep' against jconfdir.
-# This needs to be either removed in future releases or improved to keep
-# compatibility with older releases.
-# 
-# diff ${LIB}/init/jail_confdir /etc/rc.d/jail > /dev/null || util::err "/etc/rc.d/jail not patched, please run jailer init"
-#
 grep jconfdir /etc/rc.d/jail > /dev/null || util::err "/etc/rc.d/jail not patched, please run jailer init"
 
 [ ! -d "/etc/jail.conf.d" ] && mkdir /etc/jail.conf.d

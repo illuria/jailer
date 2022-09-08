@@ -11,7 +11,7 @@ util::tbd() {
 }
 
 util::version(){
-  printf "v${VERSION}\nr${VERSION_INT}\n"
+  printf "v%s\nr%s\n" ${VERSION} ${VERSION_INT}
 }
 
 
@@ -22,12 +22,11 @@ Usage: jailer ...
    init
    help subcommand
    bootstrap [version]
-   create [-r version | -s snap] [-b bridge] [-n | --no-noise] [-d domain] [-g gateway -m netmask] [-a addr] [-f exec.sh] [-c dir/file] name
+   create [-r version | -s snap] [-n] [-t eb|ng] [-b bridge|interface] [-d domain] [-g gateway -m netmask] [-a addr] [name]
    destroy name
    list
    start [name ...]
    stop [-f] [name ...]
-   exec -f /path/to/script.sh name
    console name
    snap jail[@name]
    nat list [jail]
