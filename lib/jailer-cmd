@@ -29,7 +29,6 @@ cmd::parse(){
         edit)         jail::edit "$@"        ;;
         help)         help::parse_help "$@"  ;;
         info)         jail::info "$@"        ;;
-        init)         init::jailconf         ;;
         list)         jail::list "$@"        ;;
         nat)          net::nat_parse "$@"    ;;
         rdr)          net::rdr_parse "$@"    ;;
