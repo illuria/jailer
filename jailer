@@ -14,15 +14,11 @@ fi
 # load libs (before jailer-base)
 #
 . "${LIB}/jailer-cmd"
-#. "${LIB}/jailer-config"
 . "${LIB}/jailer-core"
-#. "${LIB}/jailer-datastore"
 . "${LIB}/jailer-exception"
 . "${LIB}/jailer-help"
-#. "${LIB}/jailer-info"
 . "${LIB}/jailer-init"
 . "${LIB}/jailer-net"
-#. "${LIB}/jailer-rctl"
 . "${LIB}/jailer-util"
 . "${LIB}/jailer-zfs"
 #
