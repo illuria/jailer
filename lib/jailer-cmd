@@ -8,9 +8,9 @@ cmd::parse_init(){
     cmd::find "_cmd" "$1" "${CMD_VALID_LIST}"
 
     case "${_cmd}" in
-        version) util::version && exit ;;
-        usage)   util::usage   && exit ;;
-        init)    init::init    && exit ;;
+        version) util::version   && exit ;;
+        usage)   util::usage     && exit ;;
+        init)    init::init "$@" && exit ;;
     esac
 }
 

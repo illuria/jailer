@@ -1,7 +1,79 @@
 #!/bin/sh
 
 init::init(){
-  echo "Patching jail service for jail.conf.d support"
-  patch -u /etc/rc.d/jail -i ${LIB}/init/jail_confdir.patch
-  echo "Done!"
+  local _dataset _initialised _mpoint _nodef _rcval _zcmd
+
+  COLOUR_SET_R="\033[0;31m"
+  COLOUR_SET_G="\033[0;32m"
+  COLOUR_END="\033[0m"
+
+  shift
+  while getopts d:m:nz: _opt; do
+    case ${_opt} in
+      d)  _dataset="${OPTARG}" ;;
+      m)  _mpoint="${OPTARG}"  ;;
+      n)  _nodef=true          ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  # XXX: It needs to be improved!
+  # Check if jailer is already initialised
+  ${_initialised:=false} # Assume it is not
+  _rcval=$(sysrc -nq jailer_dir)
+  [ ${#_rcval} -ne 0 ] && _initialised=true
+
+  # XXX: To be removed soon!
+  # Regardless of the following sanity checks etc. check if the patch
+  # for jail.conf.d is already applied
+  grep "_jconfdir" /etc/rc.d/jail >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    printf "Patching jail service for jail.conf.d support: "
+    patch -u /etc/rc.d/jail -i ${LIB}/init/jail_confdir.patch
+    if [ $? -eq 0 ]; then
+      printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+    else
+      printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+      util::warn "Could not patch rc.d/jail, you need to take care of it manually"
+    fi
+  fi
+  # If jailer is initialised beforehand, inform the user and exit
+  if $_initialised; then
+    util::err "Jailer seems to be already initialised (manually, perhaps?)"
+  fi
+
+  # If _nodef (no default) is not provided, set default values for those
+  # not passed by the user
+  ${_nodef:=false} # Assume false if -n is not used
+  if ! $_nodef; then
+    set -- ${_dataset:="zroot/jails"}
+    set -- ${_mpoint:="/usr/local/jails"}
+  fi
+
+  # Sanity Check
+  [ ! $_dataset ] && util::err "ZFS dataset cannot be empty, use '-d pool/dataset'"
+
+
+  # Enable the jail service first
+  printf "Enable the jail service first: "
+  service jail enable > /dev/null 2>&1
+  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+
+  # Initialise the world (main section, if reached)
+  printf "Setting jailer_dir in rc.conf: "
+  sysrc jailer_dir="zfs:$_dataset" > /dev/null 2>&1
+  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+
+  if [ $_mpoint ]; then
+    _zcmd="zfs create -o mountpoint=$_mpoint $_dataset"
+  else
+    _zcmd="zfs create $_dataset"
+  fi
+  printf "Creating ZFS dataset $_dataset with the mount point ${_mpoint:-unknown}: "
+  $_zcmd > /dev/null 2>&1
+  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"     \
+               || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" &&
+                   util::warn "Run this command to figure out why ZFS failed: $_zcmd")
 }
