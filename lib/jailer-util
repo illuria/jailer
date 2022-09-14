@@ -10,11 +10,6 @@ util::tbd() {
   exit 1
 }
 
-util::version(){
-  printf "v%s\nr%s\n" ${VERSION} ${VERSION_INT}
-}
-
-
 util::usage() {
     cat << EOT
 Usage: jailer ...
@@ -37,4 +32,12 @@ Usage: jailer ...
    rdr del -j jail [ -i rule_index | -f ] ; -f deletes all rules for jail
 EOT
     exit 1
+}
+
+util::version(){
+  printf "v%s\nr%s\n" ${VERSION} ${VERSION_INT}
+}
+
+util::warn() {
+  echo "WARN: $1" >&2
 }
