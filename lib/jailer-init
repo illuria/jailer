@@ -1,7 +1,7 @@
 #!/bin/sh
 
 init::init(){
-  local _dataset _initialised _mpoint _nodef _rcval _zcmd
+  local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
 
   COLOUR_SET_R="\033[0;31m"
   COLOUR_SET_G="\033[0;32m"
@@ -10,9 +10,10 @@ init::init(){
   shift
   while getopts d:m:nz: _opt; do
     case ${_opt} in
-      d)  _dataset="${OPTARG}" ;;
-      m)  _mpoint="${OPTARG}"  ;;
-      n)  _nodef=true          ;;
+      d)  _dataset="${OPTARG}" && opt_d=true ;;
+      m)  _mpoint="${OPTARG}"                ;;
+      n)  _nodef=true                        ;;
+      z)  _zpool="${OPTARG}"   && opt_z=true ;;
     esac
   done
   shift $((OPTIND - 1))
@@ -42,17 +43,29 @@ init::init(){
     util::err "Jailer seems to be already initialised (manually, perhaps?)"
   fi
 
+  # Infer pool name
+  _zpool_no=$(zpool list -H -o name | wc -l)
+  if [ $_zpool_no -eq 0 ]; then
+    util::err "No ZFS pool found"
+  elif [ $_zpool_no -ne 1 ]; then
+    util::err "Could not infer pool name, use either '-z pool' or '-d pool/dataset'"
+  else
+    set -- ${_zpool:=$(zpool list -H -o name)}
+  fi
+
   # If _nodef (no default) is not provided, set default values for those
   # not passed by the user
   ${_nodef:=false} # Assume false if -n is not used
   if ! $_nodef; then
-    set -- ${_dataset:="zroot/jails"}
+    set -- ${_dataset:="$_zpool/jails"}
     set -- ${_mpoint:="/usr/local/jails"}
   fi
 
-  # Sanity Check
   [ ! $_dataset ] && util::err "ZFS dataset cannot be empty, use '-d pool/dataset'"
 
+  if $opt_z && $opt_d; then
+    util::err "Only one of -z or -d can be provided"
+  fi
 
   # Enable the jail service first
   printf "Enable the jail service first: "
