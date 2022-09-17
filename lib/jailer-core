@@ -19,8 +19,13 @@ jail::list(){
       do
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
-          _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
-          _gateway=$(jexec ${_j} route -n get default 2>/dev/null | awk '/gateway/ {print $2}')
+          if [ "$(jls -j ${_j} vnet)" = "new" ]; then
+            _ipaddr=$(jexec ${_j} ifconfig -f inet:cidr $(jexec ${_j} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
+            _gateway=`(jexec ${_j} route -n get default 2>/dev/null || echo "gateway: -")  | awk '/gateway/ {print $2}'`
+          else
+            _ipaddr=$(jls -j ${_j} ip4.addr)
+            _gateway="-"
+          fi
           _state="Active"
           _jid=$(jls -j ${_j} jid)
           _format="${_jformact}"
