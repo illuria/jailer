@@ -12,34 +12,34 @@ First, clone the repo into a FreeBSD machine
 
 Next, run `make install`
 
-## Configuration
+## Setup
 
-Jailer loves to have ZFS, so make sure you have a system with ZFS
-
-> In case you don't, you can create a ZFS pool in your existing filesystem by doing `truncate -s 10G /usr/local/disk0.img; zpool create zroot /usr/local/disk0.img`
-
-
-To create a ZFS dataset for Jails, run the following
+Jailer is so much attached to ZFS and does not support UFS at this time
+(might never do.) In case you are not using ZFS, you can create a ZFS
+pool by doing something like the following:
 
 ```
-zfs create -o mountpoint=/usr/local/jails zroot/jails
+> truncate -s 20G /usr/local/disk0.img
+> zpool create zroot /usr/local/disk0.img
 ```
 
-Then, need to specify the ZFS dataset for Jailer and enable Jails
+To start using jailer, the simplest you can do is:
 
 ```
-sysrc jailer_dir="zfs:zroot/jails"
-sysrc jail_enable="YES"
+> jailer init
 ```
 
-Jailer uses the [`jail.conf.d`](https://reviews.freebsd.org/D24570) patch, it will need to patch your `/etc/rc.d/jail` script.
-
-To patch, you can run
+And on success, you are all set. If for any reasons it failed,
+consult the documentation of the init command, or take care of
+prerequisites manually. All you need is:
 
 ```
-jailer init
+> service jail enable
+> zfs create -o mountpoint=/usr/local/jails zroot/jails
+> sysrc jailer_dir="zfs:zroot/jails"
 ```
 
+(NB make sure /etc/rc.d/jail supports jail.conf.d style)
 
 ## Usage
 
@@ -53,23 +53,18 @@ sysrc ifconfig_bridge0="inet 10.0.0.1 netmask 0xffffff00 descr jails-bridge"
 service netif start bridge0
 ```
 
-### Bootstraping the base system
-To bootstrap the base system run the bootstrap subcommand
+### Fetching the base system
+To fetch the base system run the `image fetch` subcommand
 
 ```
-jailer bootstrap 12.2-RELEASE
+> jailer image fetch 13.1-RELEASE
 ```
 
 This will download and extract `base.txz` from `https://download.freebsd.org/ftp`
 
 > If you want to use a mirror closer to you, you can change the `FreeBSD_mirror` environment variable, e.g. `setenv FreeBSD_mirror https://mirror.yandex.ru/freebsd`
 
-To list all bootstrapped base systems run the `bootstrap` subcommand without arguments.
-
-```console
-# jailer bootstrap
-12.2-RELEASE
-```
+To list all fetched base systems run `image list`.
 
 ### Creating Jails
 
