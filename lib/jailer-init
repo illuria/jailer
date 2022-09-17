@@ -63,6 +63,8 @@ init::init(){
 
   [ ! $_dataset ] && util::err "ZFS dataset cannot be empty, use '-d pool/dataset'"
 
+  ${opt_d:=false}
+  ${opt_z:=false}
   if $opt_z && $opt_d; then
     util::err "Only one of -z or -d can be provided"
   fi
