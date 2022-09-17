@@ -125,45 +125,149 @@ jail::_destroyzfs(){
   zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
 }
 
-jail::bootstrap::extract(){
+jail::image::extract(){
   local version=$1
-  mkdir -p ${jailer_dir}/bootstrap/dist-files
+  mkdir -p ${jailer_dir}/image/dist-files
   : ${FreeBSD_mirror:="https://download.FreeBSD.org/ftp"}
-  if ! ([ -e ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz ] &&   \
-        jail::bootstrap::_checksum ${_version}); then
-    if ! (fetch -o ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz  \
-       ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz &&       \
-       jail::bootstrap::_checksum ${_version}); then
-      jail::exception::bootstrap
+  if ! ([ -e ${jailer_dir}/image/dist-files/base-${_version}.txz ] &&   \
+        jail::image::_checksum ${_version}); then
+    if ! (fetch -qo ${jailer_dir}/image/dist-files/base-${_version}.txz \
+       ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/base.txz &&    \
+       jail::image::_checksum ${_version}); then
+      jail::exception::image
+      return 1
     fi
   fi
-  if [ -d ${jailer_dir}/bootstrap/${_version} ]; then
-    tar -xf ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz -C \
-      ${jailer_dir}/bootstrap/${_version}/
+  if [ -d ${jailer_dir}/image/${_version} ]; then
+    tar -xf ${jailer_dir}/image/dist-files/base-${_version}.txz -C \
+      ${jailer_dir}/image/${_version}/
   fi
 }
 
-jail::bootstrap::_checksum(){
+jail::image::_checksum(){
   local _version=$1
   sha256 -qc \
-    $(fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST |
-    grep base.txz | cut -f 2) ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz \
-    > /dev/null
+    $(fetch -o - \
+     ${FreeBSD_mirror}/releases/${UNAME_m}/${_version}/MANIFEST |
+     grep base.txz | cut -f 2)                                                     \
+    ${jailer_dir}/image/dist-files/base-${_version}.txz > /dev/null
 }
 
-jail::bootstrap(){
+jail::image(){
   if [ $# -eq 0 ]; then
-    zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/bootstrap 2>/dev/null |
-      awk '{ sub(/.*bootstrap\//,""); sub(/@.*$/,""); print }'
+    _errormsg=$(cat << EOF
+Insufficient number of arguments: Needs one of the following subcommands:
+
+    1. jailer image fetch [version] -> fetch either the specified
+                                       version or the host's version
+
+    2. jailer image list [version]  -> list either all fetched images
+                                       or the one specified if exists
+
+    3. jailer image use [version]   -> set the specified version as
+                                       the default version to use, or
+                                       return the default version if
+                                       no argument is passed
+                                       (not yet fully implemented)
+EOF
+)
+    util::err "$_errormsg"
+  fi
+  case $1 in
+    "fetch") jail::image::fetch "$@" ;;
+    "list")  jail::image::list  "$@" ;;
+    "use")   jail::image::use   "$@" ;;
+    *) util::err "Unknown argument"  ;;
+  esac
+}
+
+# XXX: Fetch command does not check if the specified (or inferred)
+# version is already fetched and is in place at the moment, and
+# has to be fixed ASAP.
+jail::image::fetch(){
+  local _maxver _version
+
+  COLOUR_SET_R="\033[0;31m"
+  COLOUR_SET_G="\033[0;32m"
+  COLOUR_END="\033[0m"
+
+  _maxver=$(freebsd-version -k | cut -d '-' -f 1 | tr -d '.')
+
+  shift
+  if [ $# -eq 0 ]; then
+    _version=$(freebsd-version -k)
+    _version=${_version%%-p*}
+
+    zfs create -p ${JAILER_ZFS_DATASET}/image/${_version}
+    printf "Fetching $_version: "
+    jail::image::extract ${_version} >/dev/null 2>&1  &&
+    zfs snap ${JAILER_ZFS_DATASET}/image/${_version}@base
+    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && exit 1)
+  elif [ $# -eq 1 ]; then
+    _version="${1}"
+
+    # Sanity check
+    [ $(echo $_version | cut -d '-' -f 1 | tr -d '.') -gt $_maxver ] &&
+      util::err "The specified version cannot be greater than the host's kernel version"
+    zfs create -p ${JAILER_ZFS_DATASET}/image/${_version}
+    printf "Fetching $_version: "
+    jail::image::extract ${_version} >/dev/null 2>&1  &&
+    zfs snap ${JAILER_ZFS_DATASET}/image/${_version}@base
+    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && exit 1)
+  else
+    util::err "Image fetch command takes at most one argument"
+  fi
+}
+
+jail::image::list(){
+  local _default_images
+
+  _default_image=$(jailer image use 2>/dev/null)
+
+  shift
+  if [ $# -eq 0 ]; then
+    zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/image 2>/dev/null |
+      awk -v default_image="$_default_image"    \
+          '{
+             sub(/.*image\//,""); sub(/@.*$/,"");
+             if ($0 == default_image) {
+               print "* " $0
+             } else print "  " $0
+           }'
     exit 0
   elif [ $# -eq 1 ]; then
-    local _version="${1}"
-
-    zfs create -p ${JAILER_ZFS_DATASET}/bootstrap/${_version}
-    jail::bootstrap::extract ${_version}
-    zfs snap ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base
+    if [ $1 = "remote" ]; then
+      : ${FreeBSD_mirror:="https://download.FreeBSD.org/ftp"}
+      fetch -qo - ${FreeBSD_mirror}/releases/${UNAME_m} |
+        sed -n -e 's/<\/*[^>]*>//g' -e 's/\(.*RELEASE\).*/  \1/p'
+    else
+      (zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/image 2>/dev/null |
+       awk '{ sub(/.*image\//,""); sub(/@.*$/,""); print }' | grep -Fx $1) &&
+       exit 0 || exit 1
+    fi
   else
-    util::err "bootstrap takes only one argument at a time"
+    util::err "Image list command takes at most one argument"
+  fi
+}
+
+# XXX: Currently there is no support for default images,
+# but I will go over it ASAP
+jail::image::use(){
+  local _use_file
+
+  _use_file="${jailer_dir}/image/.default"
+
+  shift
+  if [ $# -eq 0 ]; then
+    [ -f $_use_file ] && cat $_use_file ||
+      echo "No default image set" >&2
+  elif [ $# -eq 1 ]; then
+    jailer image list $1 >/dev/null && echo $1 > $_use_file ||
+      util::err "No such an image"
+  else
+    util::err "Image use command takes at most one argument"
   fi
 }
 
@@ -222,14 +326,14 @@ jail::create(){
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
 
-  [ -z "${_version}" ] && _version=$(jail::bootstrap | sort | tail -1)
+  [ -z "${_version}" ] && _version=$(jail::image | sort | tail -1)
 
   # Sanity Checks
   if [ -e /etc/jail.conf.d/${_name}.conf ]; then
     util::err "${_name} already exists"
   fi
-  if [ ! -d ${jailer_dir}/bootstrap/${_version} ]; then
-    util::err "${_version} does not exist, try bootstrapping first"
+  if [ ! -d ${jailer_dir}/image/${_version} ]; then
+    util::err "${_version} does not exist, try imageping first"
   fi
 
   # Check the VNET type, can be none, eb or ng
@@ -285,7 +389,7 @@ EOF
   if [ ! -z ${_snap} ]; then
     zfs clone ${JAILER_ZFS_DATASET}/${_snap} ${JAILER_ZFS_DATASET}/${_name}
   else
-    (zfs send ${JAILER_ZFS_DATASET}/bootstrap/${_version}@base |
+    (zfs send ${JAILER_ZFS_DATASET}/image/${_version}@base |
      zfs recv ${JAILER_ZFS_DATASET}/${_name})
   fi
 

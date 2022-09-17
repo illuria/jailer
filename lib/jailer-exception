@@ -1,9 +1,9 @@
 #!/bin/sh
 
-jail::exception::bootstrap() {
-  zfs destroy ${JAILER_ZFS_DATASET}/bootstrap/${_version}
-  rm ${jailer_dir}/bootstrap/dist-files/base-${_version}.txz > /dev/null 2>&1
-  util::err "bootstrap failed, try again later"
+jail::exception::image() {
+  zfs destroy ${JAILER_ZFS_DATASET}/image/${_version}       > /dev/null 2>&1
+  rm -f ${jailer_dir}/image/dist-files/base-${_version}.txz > /dev/null 2>&1
+  return 1
 }
 
 jail::exception::create() {
