@@ -1,0 +1,153 @@
+.\"-
+.\" Copyright (c) 2022 Antranig Vartanian <antranig@vartanian.am>
+.\" Copyright (c) 2022 Faraz Vahedi <kfv@kfv.io>
+.\" All rights reserved
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted providing that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+.\" DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+.\" STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+.\" IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd September 30, 2022
+.Dt JAILER 8
+.Os
+.Sh NAME
+.Nm jailer
+.Nd "utility to manage FreeBSD jails"
+.Sh SYNOPSIS
+.Nm
+.Cm command
+.Oo
+.Op Cm subcommand
+.Ar args
+.Oc
+.Sh DESCRIPTION
+.Nm
+is a minimalistic FreeBSD jail manager.
+This is currently written in pure shell script, but is soon te be
+rewritten in something more vigorous like Rust.
+The main goal is to be as minimal and close to the jail subsystem as
+possible.
+.Sh GETTING STARTED
+This section briefly covers the basics with necessary references to
+the related manual pages.
+A more thorough guide on all subjects is available and listed in the
+SEE ALSO section.
+.Ss Prerequisites
+.Nm
+is so much attached to ZFS and does not support UFS at this time
+(might never do.)
+In case ZFS is not used, a pool could be created by doing something
+like the following:
+.Bd -literal -offset indent
+> truncate -s 20G /usr/local/disk0.img
+> zpool create zroot /usr/local/disk0.img
+.Ed
+.Ss Initialisation
+Once the environment meets the basic requirements, initialisation is
+required.
+The easiest method is by using the (recommended)
+.Xr jailer-init 8 ,
+but here we cover the more in-depth and manual procedure for a better
+understanding of the phase.
+.Pp
+First of all, the jail service needs to be enabled:
+.Bd -literal -offset indent
+> service jail enable
+.Ed
+.Pp
+The next thing is the ZFS dataset in which
+.Nm
+would take care of its images, jails, and settings.
+In case only one pool exists, the default dataset
+.Xr jailer-init 8
+creates (if not altered with additional arguments) is
+.Em <pool-name/jails>
+with the mount point of
+.Pa /usr/local/jails .
+If more than one pool exists, one needs to be explicitly specified
+with the
+.Fl z
+option.
+Hence, to manually do the creation of the ZFS dataset, considering
+the pool name is the default
+.Em zroot ,
+the command looks like the following:
+.Bd -literal -offset indent
+> zfs create -o mountpoint=/usr/local/jails zroot/jails
+.Ed
+.Pp
+Finally,
+.Va jailer_dir
+needs to be set in
+.Pa /etc/rc.conf ,
+with the value of the format
+.Em zfs:pool/dataset .
+In our case, the following command does the job:
+.Bd -literal -offset indent
+> sysrc jailer_dir="zfs:zroot/jails"
+.Ed
+.Ss Network Setup
+A simple method is to create a bridge, assign an IP address, and
+use it later by passing it with the appropriate flag.
+The following is an example of how to set up a bridge:
+.Bd -literal -offset indent
+> sysrc cloned_interfaces="bridge0"
+> sysrc ifconfig_bridge0="inet 10.0.0.1 netmask 0xffffff00 descr jailer-bridge"
+> service netif start bridge0
+.Ed
+.Ss Construct a Jail
+This subsection is by no manner of means adequate for professional
+use, and consulting the coupled manual pages is highly recommended.
+Consequently, this shall be considered a 2-minute introduction.
+.Pp
+Fetch a base system:
+.Bd -literal -offset indent
+> jailer image fetch 13.1-RELEASE
+.Ed
+.Pp
+Create a jail:
+.Bd -literal -offset indent
+> jailer create -r 13.1-RELEASE -b bridge0 -d www.example.com -a 10.0.0.10 www
+.Ed
+.Pp
+If successful, then it is possible to enter the jail:
+.Bd -literal -offset indent
+> jailer console www
+.Ed
+.Pp
+NB configuring firewall is required to grant internet access, and
+a new module is under development.
+Once it is out, this manual page will be updated and a new page
+for the module will be written as well.
+.Sh BUGS
+.Nm
+is considered alpha software, and the whole interface may be subject
+to refinement.
+There may also be undiscovered bugs - if found one, please open a
+GitHub issue.
+.Sh SEE ALSO
+.Xr jailer-init 8 ,
+.Xr jailer-image 8 ,
+.Xr jailer-create 8 ,
+.Xr jailer-destroy 8 ,
+.Xr jailer-console 8 ,
+.Xr jailer-start 8 ,
+.Xr jailer-stop 8 ,
+.Xr jailer-list 8 
