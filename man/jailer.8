@@ -78,15 +78,19 @@ would take care of its images, jails, and settings.
 In case only one pool exists, the default dataset
 .Xr jailer-init 8
 creates (if not altered with additional arguments) is
-.Em <pool-name/jails>
+.Em $pool/jails
+(where
+.Em $pool
+is the ZFS pool that is either specified or inferred automatically)
 with the mount point of
 .Pa /usr/local/jails .
-If more than one pool exists, one needs to be explicitly specified
+The pool name can be automatically inferred if there is only one
+pool available, otherwise, one needs to be explicitly specified
 with the
 .Fl z
 option.
-Hence, to manually do the creation of the ZFS dataset, considering
-the pool name is the default
+To manually do the creation of the ZFS dataset, considering the pool
+name is the default
 .Em zroot ,
 the command looks like the following:
 .Bd -literal -offset indent
