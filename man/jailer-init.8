@@ -1,0 +1,142 @@
+.\"-
+.\" Copyright (c) 2022 Antranig Vartanian <antranig@vartanian.am>
+.\" Copyright (c) 2022 Faraz Vahedi <kfv@kfv.io>
+.\" All rights reserved
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted providing that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+.\" DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+.\" STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+.\" IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd October 1, 2022
+.Dt JAILER-INIT 8
+.Os
+.Sh NAME
+.Nm jailer-init
+.Nd "initialise jailer comfortably"
+.Sh SYNOPSIS
+.Cm jailer init
+.Oo
+.Ar args
+.Oc
+.Sh DESCRIPTION
+Although the initialisation consists of a few simple steps that
+are easy to carry out manually,
+.Sy jailer init
+is the recommended method to ensure everything is in place and
+correctly configured since the number of dependencies may increase
+in time.
+.Sh OPTIONS
+.Bl -tag -width indent
+.It Fl d Ar dataset
+Set what
+.Em pool/dataset
+to create for
+.Cm jailer .
+The default value is
+.Em $pool/jails
+where
+.Em $pool
+is either the value specified with the
+.Fl z
+option or the name of the pool inferred automatically.
+For example, if there is only one ZFS pool (so it can be inferred
+automatically) and its name is
+.Em zroot ,
+the default value would be
+.Em zroot/jails .
+This option cannot be used with the
+.Fl z
+option.
+.It Fl m Ar mount_point
+Set the mount point of the ZFS dataset that is about to be created.
+The default value is
+.Pa /usr/local/jails .
+.It Fl n
+Do not use default values.
+.It Fl z Ar zpool
+Set the
+.Em $pool
+for
+.Em $pool/jails ,
+where "jails" is the default value to be used for the dataset in
+.Em $pool/dataset .
+This option cannot be used with
+.Fl d
+option, since that per se requires the user to specify the pool
+name as well, that consequently makes
+.Fl z
+option meaningless.
+.El
+.Sh EXAMPLES
+Assume there is only one ZFS pool and it's named
+.Em hope .
+To initialise
+.Cm jailer
+with all the default values, where the file system would be
+.Em hope/jails
+in this case and the mount point
+.Pa /usr/local/jails ,
+no argument is required, hence:
+.Bd -literal -offset indent
+> jailer init
+.Ed
+.Pp
+Regardless of how many pools exist on the host (even if only
+one,) initialise
+.Cm jailer
+with a file system named
+.Em tank/prison
+and the mount point of
+.Pa /usr/local/prisoners :
+.Bd -literal -offset indent
+> jailer init -d tank/prisons -m /usr/local/prisoners
+.Ed
+.Pp
+Assume there are three ZFS pools available. zroot, tank, and
+aurora. To initialise
+.Cm jailer
+with a file system named
+.Em aurora/jails ,
+where "jails" is the default value in
+.Em $pool/jails ,
+only pool name has to be specified, hence:
+.Bd -literal -offset indent
+> jailer init -z aurora
+.Ed
+.Pp
+Initialise
+.Cm jailer
+with
+.Em mars/martians ,
+and ignore default values - so the mount point would be
+inferred and an error might occur if the file system
+cannot be created:
+.Bd -literal -offset indent
+> jailer init -n -d mars/martians
+.Ed
+.Sh SEE ALSO
+.Xr jailer-init 8 ,
+.Xr jailer-image 8 ,
+.Xr jailer-create 8 ,
+.Xr jailer-destroy 8 ,
+.Xr jailer-console 8 ,
+.Xr jailer-start 8 ,
+.Xr jailer-stop 8 ,
+.Xr jailer-list 8 
