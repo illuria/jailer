@@ -1,0 +1,91 @@
+.\"-
+.\" Copyright (c) 2022 Antranig Vartanian <antranig@vartanian.am>
+.\" Copyright (c) 2022 Faraz Vahedi <kfv@kfv.io>
+.\" All rights reserved
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted providing that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+.\" DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+.\" STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+.\" IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd October 4, 2022
+.Dt JAILER-IMAGE 8
+.Os
+.Sh NAME
+.Nm jailer-image
+.Nd "manage base images"
+.Sh SYNOPSIS
+.Cm jailer image
+.Ar subcommand
+.Oo
+.Ar args
+.Oc
+.Sh DESCRIPTION
+Fetch and manage base images for jails.
+Currently only the supported RELEASE versions from the FreeBSD
+upstream are available, but the plan is to soon accept custom
+servers as well.
+.Sh SUBCOMMANDS
+.Bl -tag -width indent
+.It Cm fetch Oo Ar version Oc
+fetch either the specified version or the host's version.
+.It Cm list Oo Ar version Oc
+list either all fetched images or the one specified if exists.
+To list available images to fetch (on the remote,) the special
+.Em remote
+argument could be used.
+When listing local images, the one that is set to be used as
+the default image with the
+.Cm use
+subcommand is marked with an asterisk.
+.It Cm use Oo Ar version Oc
+set the specified version as the default version to use, or
+return the default version if no argument is passed (not
+yet fully implemented.)
+.El
+.Sh EXAMPLES
+Fetch the same version as the host:
+.Bd -literal -offset indent
+> jailer image fetch
+.Ed
+.Pp
+Fetch 12.3-RELEASE:
+.Bd -literal -offset indent
+> jailer image fetch 12.3-RELEASE
+.Ed
+.Pp
+List all images fetched:
+.Bd -literal -offset indent
+> jailer image list
+.Ed
+.Pp
+List available images to fetch:
+.Bd -literal -offset indent
+> jailer image list remote
+.Ed
+.Pp
+.Sh SEE ALSO
+.Xr jailer-init 8 ,
+.Xr jailer-image 8 ,
+.Xr jailer-create 8 ,
+.Xr jailer-destroy 8 ,
+.Xr jailer-console 8 ,
+.Xr jailer-start 8 ,
+.Xr jailer-stop 8 ,
+.Xr jailer-list 8 
