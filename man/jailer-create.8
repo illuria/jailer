@@ -1,0 +1,145 @@
+.\"-
+.\" Copyright (c) 2022 Antranig Vartanian <antranig@vartanian.am>
+.\" Copyright (c) 2022 Faraz Vahedi <kfv@kfv.io>
+.\" All rights reserved
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted providing that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+.\" IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+.\" WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+.\" DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+.\" STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+.\" IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd October 4, 2022
+.Dt JAILER-CREATE 8
+.Os
+.Sh NAME
+.Nm jailer-create, jailer-destroy
+.Nd "create or destroy jails comfortably"
+.Sh SYNOPSIS
+.Nm jailer create
+.Op Fl r Ar version | Fl s Ar snap
+.Op Fl t Ar eb Ns | Ns Ar ng
+.Op Fl b Ar bridge
+.Op Fl n
+.Op Fl d Ar domain
+.Op Fl g Ar gateway Fl m Ar netmask
+.Op Fl a Ar addr
+.Ar name
+.Nm jailer destroy
+.Ar name
+.Sh DESCRIPTION
+Too young to have a story, and self descriptive enough to let us
+get down to the nitty-gritty.
+.Sh OPTIONS
+Please note that
+.Cm jailer destroy
+accepts no options and the only argument it receives is the
+name of the jail to destroy.
+Therefore, all the following options are only valid for
+.Cm jailer create .
+.Bl -tag -width indent
+.It Fl a Ar addr
+Use
+.Em addr
+for networking.
+The value could be either
+.Sy dhcp
+(to use DHCP) or an IP address.
+.It Fl b Ar bridge Ns | Ns Ar interface
+Attatch to
+.Em bridge Ns | Ns Em interface .
+.It Fl d Ar domain
+Set the jail's domain.
+Jail's hostname is its name plus the domain, for example, if
+the name is www and the domain is example.com, hostname would
+be www.example.com.
+.It Fl g Ar gateway
+Set the gateway.
+.It Fl m Ar netmask
+Set netmask. Only applicable if specifying a gateway.
+.It Fl n
+Disable sendmail, disable cron, and set
+.Fl ss
+flag for
+.Xr syslogd 8
+to avoid openning a network socket from the daemon, which will
+disable logging both from and to remote machines.
+.It Fl r Ar revision
+Use base image of the specified
+.Em revision .
+Default value is of the host's version.
+.It Fl s Ar snapshot
+Clone from the specified snapshot.
+The value shall not be the full path of the ZFS snapshot, but
+the portion being under the
+.Cm jailer Ns 's
+directory.
+Check the EXAMPLES section to get a feel of the format.
+.It Fl t Ar network_type
+Use vnet and set the network type. Could be either
+.Em eb
+or
+.Em ng ,
+where the former is epair/bridge and the latter netgraph.
+Default is none.
+.El
+.Sh EXAMPLES
+Create a jail named www, attached to bridge0, using IP
+address of 10.0.0.10, with the hostname of
+www.example.com, and using release version 12.3-RELEASE:
+.Bd -literal -offset indent
+> jailer create -r 12.3-RELEASE -b bridge0 -d example.com -a 10.0.0.10 www
+.Ed
+.Pp
+Assuming the host is running 13.1-RELEASE, create a jail
+named tangerine, using DHCP, attached to bridge0, and
+with the hostname of tangerine.citrus.loc:
+.Bd -literal -offset indent
+> jailer create -b bridge0 -d citrus.loc -a dhcp tangerine
+.Ed
+.Pp
+Assuming the following is an excerpt from the list of ZFS snapshots on
+the host:
+.Bd -literal -offset indent
+zroot/jails/api-dev@base
+zroot/jails/api-dev@alpha
+zroot/jails/api-dev@beta
+zroot/jails/api-dev@gamma
+zroot/jails/api-dev@gold
+.Ed
+.Pp
+To create a jail named api from the
+zroot/jails/api-dev@gold snapshot, something like the
+following is required:
+.Bd -literal -offset indent
+> jailer create -s api-dev@gold -b bridge0 -d example.com -a 10.0.0.110 api
+.Ed
+.Pp
+Destroy a jail named capsule:
+.Bd -literal -offset indent
+> jailer destroy capsule
+.Ed
+.Sh SEE ALSO
+.Xr jailer-init 8 ,
+.Xr jailer-image 8 ,
+.Xr jailer-create 8 ,
+.Xr jailer-destroy 8 ,
+.Xr jailer-console 8 ,
+.Xr jailer-start 8 ,
+.Xr jailer-stop 8 ,
+.Xr jailer-list 8 
