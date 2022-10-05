@@ -28,58 +28,29 @@
 .Dt JAILER-IMAGE 8
 .Os
 .Sh NAME
-.Nm jailer-image
-.Nd "manage base images"
+.Nm jailer-start, jailer-stop, jailer-list
+.Nd "start, stop, and list jails"
 .Sh SYNOPSIS
-.Nm jailer image
-.Ar subcommand
-.Oo
-.Ar args
-.Oc
+.Nm jailer list
+.Nm jailer start
+.Ar name
+.Nm jailer stop
+.Ar name
 .Sh DESCRIPTION
-Fetch and manage base images for jails.
-Currently only the supported RELEASE versions from the FreeBSD
-upstream are available, but the plan is to soon accept custom
-servers as well.
-.Sh SUBCOMMANDS
-.Bl -tag -width indent
-.It Cm fetch Oo Ar version Oc
-fetch either the specified version or the host's version.
-.It Cm list Oo Ar version Oc
-list either all fetched images or the one specified if exists.
-To list available images to fetch (on the remote,) the special
-.Em remote
-argument could be used.
-When listing local images, the one that is set to be used as
-the default image with the
-.Cm use
-subcommand is marked with an asterisk.
-.It Cm use Oo Ar version Oc
-set the specified version as the default version to use, or
-return the default version if no argument is passed (not
-yet fully implemented.)
-.El
-.Sh EXAMPLES
-Fetch the same version as the host:
-.Bd -literal -offset indent
-> jailer image fetch
-.Ed
-.Pp
-Fetch 12.3-RELEASE:
-.Bd -literal -offset indent
-> jailer image fetch 12.3-RELEASE
-.Ed
-.Pp
-List all images fetched:
-.Bd -literal -offset indent
-> jailer image list
-.Ed
-.Pp
-List available images to fetch:
-.Bd -literal -offset indent
-> jailer image list remote
-.Ed
-.Pp
+The interface is immature and under development.
+The current implementation does not have any sanity checks
+provided and is only there to make things a bit easier.
+For example,
+.Cm start
+and
+.Cm stop
+do not accept more than one jail
+.Ar name
+at this time, and
+.Cm list
+does not accept an argument to check for its existence.
+But soon will they be all refactored and this manual page
+will be rewritten.
 .Sh SEE ALSO
 .Xr jailer-init 8 ,
 .Xr jailer-image 8 ,
