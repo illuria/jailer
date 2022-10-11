@@ -17,8 +17,8 @@ install:
 	done
 	@${INSTALL} -C -m 444 man/*.8.gz ${MANDIR}
 	# Handle man links
-	@for i in ${MLINKS}; do                                         \
-		ln -s ${MANDIR}/$${i%:*}.8.gz ${MANDIR}/$${i#*:}.8.gz ; \
+	@for i in ${MLINKS}; do                                          \
+		ln -fs ${MANDIR}/$${i%:*}.8.gz ${MANDIR}/$${i#*:}.8.gz ; \
 	done
 	# Clean up ./man dir
 	@rm -f man/*.8.gz
