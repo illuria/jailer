@@ -236,7 +236,7 @@ jail::image::list(){
                print "* " $0
              } else print "  " $0
            }'
-    exit 0
+    return 0
   elif [ $# -eq 1 ]; then
     if [ $1 = "remote" ]; then
       : ${FreeBSD_mirror:="https://download.FreeBSD.org/ftp"}
@@ -245,7 +245,7 @@ jail::image::list(){
     else
       (zfs list -t snap -Ho name -r ${JAILER_ZFS_DATASET}/image 2>/dev/null |
        awk '{ sub(/.*image\//,""); sub(/@.*$/,""); print }' | grep -Fx $1) &&
-       exit 0 || exit 1
+       return 0 || return 1
     fi
   else
     util::err "Image list command takes at most one argument"
