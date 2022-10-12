@@ -198,6 +198,8 @@ jail::image::fetch(){
     _version=$(freebsd-version -k)
     _version=${_version%%-p*}
 
+    jail::image list ${_version} >/dev/null && echo 'Image already exists!' && exit 1;
+
     zfs create -p ${JAILER_ZFS_DATASET}/image/${_version}
     printf "Fetching $_version: "
     jail::image::extract ${_version} >/dev/null 2>&1  &&
@@ -210,6 +212,7 @@ jail::image::fetch(){
     # Sanity check
     [ $(echo $_version | cut -d '-' -f 1 | tr -d '.') -gt $_maxver ] &&
       util::err "The specified version cannot be greater than the host's kernel version"
+    jail::image list ${_version} >/dev/null && echo 'Image already exists!' && exit 1;
     zfs create -p ${JAILER_ZFS_DATASET}/image/${_version}
     printf "Fetching $_version: "
     jail::image::extract ${_version} >/dev/null 2>&1  &&
