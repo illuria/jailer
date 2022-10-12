@@ -3,10 +3,6 @@
 init::init(){
   local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
 
-  COLOUR_SET_R="\033[0;31m"
-  COLOUR_SET_G="\033[0;32m"
-  COLOUR_END="\033[0m"
-
   shift
   while getopts d:m:nz: _opt; do
     case ${_opt} in

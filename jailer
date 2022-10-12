@@ -11,8 +11,12 @@ else
     exit 1
 fi
 
+# set global variables
+COLOUR_SET_R="\033[0;31m"
+COLOUR_SET_G="\033[0;32m"
+COLOUR_END="\033[0m"
+
 # load libs (before jailer-base)
-#
 . "${LIB}/jailer-cmd"
 . "${LIB}/jailer-core"
 . "${LIB}/jailer-exception"
@@ -21,6 +25,6 @@ fi
 . "${LIB}/jailer-net"
 . "${LIB}/jailer-util"
 . "${LIB}/jailer-zfs"
-#
+
 # entry point
 . "${LIB}/jailer-base"

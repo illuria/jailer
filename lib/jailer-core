@@ -187,10 +187,6 @@ EOF
 jail::image::fetch(){
   local _maxver _version
 
-  COLOUR_SET_R="\033[0;31m"
-  COLOUR_SET_G="\033[0;32m"
-  COLOUR_END="\033[0m"
-
   _maxver=$(freebsd-version -k | cut -d '-' -f 1 | tr -d '.')
 
   shift
