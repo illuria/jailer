@@ -91,18 +91,25 @@ jail::get_next_id(){
 }
 
 jail::start(){
-  local _name="$1"
-  if !(jail -f /etc/jail.conf.d/${_name}.conf -c ${_name} > /dev/null 2>&1); then
-    return 1
-  fi
-  echo "${_name}: started"
+  for _name in $@; do
+    printf "Starting ${_name}: "
+    jail -f /etc/jail.conf.d/${_name}.conf -c ${_name} > /dev/null 2>&1
+    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
+  done
 }
 
 jail::stop(){
-  local _name="$1"
-  jail::checkexists ${_name}
-  jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1
-  echo "${_name}: stopped"
+  for _name in $@; do
+    printf "Stopping ${_name}: "
+    if (jls -j ${_name} > /dev/null 2>&1); then
+      jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1
+      [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                   || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
+    else
+      printf "${COLOUR_SET_R}Failed! (is not an active jail)${COLOUR_END}\n"
+    fi
+  done
 }
 
 jail::destroy(){
