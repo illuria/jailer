@@ -324,8 +324,17 @@ jail::create(){
   _name="${1:-$(uuidgen)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
+  _default_image=$(jailer image use 2>/dev/null)
 
-  [ -z "${_version}" ] && _version=$(jail::image | sort | tail -1)
+  if [ -z "${_version}" ]; then
+    if [ ! -z "${_default_image}" ]; then
+      _version=${_default_image}
+    else
+      _version=$(uname -r)
+      _version=${_version%%-p*}
+      jail::image list ${_version} >/dev/null || jail::image fetch >/dev/null
+    fi
+  fi
 
   # Sanity Checks
   if [ -e /etc/jail.conf.d/${_name}.conf ]; then
@@ -363,6 +372,10 @@ EOF
     *)  set_os_vars ;;
   esac
 
+  # Creation begins ...
+  printf "Creating ${_name}: "
+
+  # Generate the configuration file
   cat << EOF > /etc/jail.conf.d/${_name}.conf
 # vim: set syntax=sh:
 exec.clean;
@@ -416,9 +429,11 @@ EOF
   fi
 
   sysrc -q jail_list+="${_name}" > /dev/null 2>&1
-  if !(jail::start ${_name}); then
+  if !(jail::start ${_name} >/dev/null 2>&1); then
     jail::exception::create
   fi
+  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+               || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && return 1)
 }
 
 jail::console() {
