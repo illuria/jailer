@@ -115,15 +115,21 @@ jail::stop(){
 jail::destroy(){
   local _name="$1"
 
+  printf "Destroying ${_name}: "
+
   if jls -j ${_name} > /dev/null 2>&1; then
     jail::stop ${_name}
   fi
 
-  jail::_destroyzfs ${_name}
+  if ! zfs list ${JAILER_ZFS_DATASET}/${_name} > /dev/null 2>&1; then
+    printf "${COLOUR_SET_R}Failed! (does not exist)${COLOUR_END}\n"
+  else
+    jail::_destroyzfs ${_name}
 
-  rm /etc/jail.conf.d/${_name}.conf > /dev/null 2>&1
-  sysrc jail_list-="${_name}"       > /dev/null 2>&1
-  echo "${_name}: destroyed"
+    rm /etc/jail.conf.d/${_name}.conf > /dev/null 2>&1
+    sysrc jail_list-="${_name}"       > /dev/null 2>&1
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+  fi
 }
 
 jail::_destroyzfs(){
