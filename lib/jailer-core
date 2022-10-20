@@ -118,7 +118,7 @@ jail::destroy(){
   printf "Destroying ${_name}: "
 
   if jls -j ${_name} > /dev/null 2>&1; then
-    jail::stop ${_name}
+    jail::stop ${_name} > /dev/null 2>&1
   fi
 
   if ! zfs list ${JAILER_ZFS_DATASET}/${_name} > /dev/null 2>&1; then
@@ -428,17 +428,20 @@ EOF
   # Set MAC address if using dhcp
   if [ "${_addr}" = "dhcp" -a "${_vnet}" = "eb" ]; then
     echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
-    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP"
+    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP" > /dev/null 2>&1
   # Otherwise use the provided address
   elif [ "${_vnet}" = "eb" ]; then
-    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
-    sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
+    > /dev/null 2>&1 \
+      sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
+    > /dev/null 2>&1 \
+      sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
   fi
 
   # Set silent if required
   if [ ! -z ${_silent} ]; then
     sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" \
-      sendmail_enable="NONE" syslogd_flags="-ss"
+      sendmail_enable="NONE" syslogd_flags="-ss"        \
+      > /dev/null 2>&1
   fi
 
   sysrc -q jail_list+="${_name}" > /dev/null 2>&1
