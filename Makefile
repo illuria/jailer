@@ -12,6 +12,7 @@ install:
 	@$(INSTALL) -C lib/init/* $(LIBDIR)/init/
 	@$(INSTALL) -C lib/jail*  $(LIBDIR)/
 	# Compress and install man pages
+	@mkdir -p ${MANDIR}
 	@for i in man/*.8; do \
 		gzip -fk $$i; \
 	done
