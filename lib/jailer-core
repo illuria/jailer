@@ -366,7 +366,7 @@ jail::create(){
     [ -z "${_addr}" ]    && _addr="dhcp"
     [ -z "${_bridge}" ]  && _bridge="bridge0"
     [ -z "${_gw}" ]      && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
-    [ -z "${_netmask}" ] && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4}')
+    [ -z "${_netmask}" ] && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4; exit;}')
   fi
 
   if [ "${_vnet}" = "eb" -o "${_vnet}" = "ng" ];
