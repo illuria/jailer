@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="create,console,deinit,destroy,edit,help,image,info,init,list,nat,rdr,snap,start,startall,stop,stopall,usage,version"
+CMD_VALID_LIST="create,console,deinit,destroy,edit,help,image,info,init,list,nat,rdr,snap,snapshot,start,startall,stop,stopall,usage,version"
 
 cmd::parse_init(){
     local _cmd
@@ -22,22 +22,22 @@ cmd::parse(){
     shift
 
     case "${_cmd}" in
-        create)       jail::create     "$@"  ;;
-        console)      jail::console    "$@"  ;;
-        destroy)      jail::destroy    "$@"  ;;
-        edit)         jail::edit       "$@"  ;;
-        help)         help::parse_help "$@"  ;;
-        image)        jail::image      "$@"  ;;
-        info)         jail::info       "$@"  ;;
-        list)         jail::list       "$@"  ;;
-        nat)          net::nat_parse   "$@"  ;;
-        rdr)          net::rdr_parse   "$@"  ;;
-        snap)         zfs::snapshot    "$@"  ;;
-        start)        jail::start      "$@"  ;;
-        startall)     util::tbd              ;;
-        stop)         jail::stop       "$@"  ;;
-        stopall)      util::tbd              ;;
-        *)            util::err "unknown command '${_user_cmd}'. please run 'jailer usage' for help" ;;
+        create)           jail::create     "$@"  ;;
+        console)          jail::console    "$@"  ;;
+        destroy)          jail::destroy    "$@"  ;;
+        edit)             jail::edit       "$@"  ;;
+        help)             help::parse_help "$@"  ;;
+        image)            jail::image      "$@"  ;;
+        info)             jail::info       "$@"  ;;
+        list)             jail::list       "$@"  ;;
+        nat)              net::nat_parse   "$@"  ;;
+        rdr)              net::rdr_parse   "$@"  ;;
+        snap|snapshot)    zfs::snapshot    "$@"  ;;
+        start)            jail::start      "$@"  ;;
+        startall)         util::tbd              ;;
+        stop)             jail::stop       "$@"  ;;
+        stopall)          util::tbd              ;;
+        *)                util::err "Unknown command '${_user_cmd}'. Please run 'jailer usage' for help" ;;
     esac
 }
 
