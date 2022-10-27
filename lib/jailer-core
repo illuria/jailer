@@ -410,9 +410,10 @@ ${_netvars}
 }
 EOF
 
-  # ZFS clone / snap
+  # ZFS send / recv
   if [ ! -z ${_snap} ]; then
-    zfs clone ${JAILER_ZFS_DATASET}/${_snap} ${JAILER_ZFS_DATASET}/${_name}
+    (zfs send ${JAILER_ZFS_DATASET}/${_snap} |
+     zfs recv ${JAILER_ZFS_DATASET}/${_name})
   else
     (zfs send ${JAILER_ZFS_DATASET}/image/${_version}@base |
      zfs recv ${JAILER_ZFS_DATASET}/${_name})
