@@ -125,6 +125,7 @@ zfs::snapshot(){
     #cmd::parse_args "$@"
     shift $?
     _name="$1"
+    printf "Taking the snapshot $_name: "
 
     # try to get snapshot name
     # we support normal zfs syntax for this
@@ -139,8 +140,14 @@ zfs::snapshot(){
     [ ! "${JAILER_ZFS}" = "1" ] && util::err "cannot snapshot jails on non-zfs datastores"
     [ -z "${_snap}" ] && _snap=$(date +"%Y-%m-%d-%H:%M:%S")
 
-    zfs snapshot -r ${JAILER_ZFS_DATASET}/${_name}@${_snap}
-    [ $? -eq 0 ] || util::err "failed to create recursive snapshot of virtual machine"
+    if ! zfs list ${JAILER_ZFS_DATASET}/${_name}@${_snap} > /dev/null 2>&1; then
+        zfs snapshot -r ${JAILER_ZFS_DATASET}/${_name}@${_snap} > /dev/null 2>&1
+        [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                     || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+    else
+        printf "${COLOUR_SET_R}Failed! (already exists)${COLOUR_END}\n"
+    fi
+
 }
 
 # try to remove a snapshot
