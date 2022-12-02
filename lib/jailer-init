@@ -40,10 +40,12 @@ init::init(){
   fi
 
   # Infer pool name
-  _zpool_no=$(zpool list -H -o name | wc -l)
-  if [ $_zpool_no -eq 0 ]; then
+  _zpool_no="$(zpool list -H -o name | wc -l)"
+  if [ "$_zpool_no" -eq 0 ]; then
     util::err "No ZFS pool found"
-  elif [ $_zpool_no -ne 1 ]; then
+  elif [ -n "$_zpool" ] || [ -n "$_dataset" ]; then
+    :
+  elif [ "$_zpool_no" -ne 1 ]; then
     util::err "Could not infer pool name, use either '-z pool' or '-d pool/dataset'"
   else
     set -- ${_zpool:=$(zpool list -H -o name)}
