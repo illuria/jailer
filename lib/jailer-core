@@ -345,7 +345,7 @@ jail::create(){
     else
       _version=$(uname -r)
       _version=${_version%%-p*}
-      jail::image list ${_version} >/dev/null || jail::image fetch >/dev/null
+      jail::image list ${_version} >/dev/null || jail::image fetch
     fi
   fi
 
