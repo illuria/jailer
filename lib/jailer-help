@@ -3,6 +3,8 @@
 help::parse_help(){
   case "${1}" in
     create)   help::create  ;;
+    console)  help::console ;;
+    destroy)  help::destroy ;;
     edit)     help::edit    ;;
     nat)      help::nat     ;;
     rdr)      help::rdr     ;;
@@ -11,52 +13,62 @@ help::parse_help(){
 }
 
 help::create(){
-  cat << EOT
+  cat <<EOF
 Usage:  jailer create  [-r version | -s snap] [-t eb|ng] [-b bridge] [-n] [-d domain] [-g gateway -m netmask] [-a addr] [name]
 Options:
   -r version          : FreeBSD-version as base of Jail; defaults to uname -r
   -s snapshot         : Clone from snapshot as base of Jail
   -n                  : Make Jail less noisy
   -d domain           : Set Jail's domain
-  -t network_type     : Network Type; defaults to none, can be eb (epair/bridge) or ng (netgraph)
-  -b bridge|interface : Attach to bridge
-  -g gateway          : Set Jail's gateway
+  -t network_type     : Network Type; defaults to none (inherit), can be eb (epair/bridge)
+  -b bridge|interface : Attach to interface (if inherit) or bridge (if epair/bridge)
+  -g gateway          : Set Jail's gateway (ignored if inherit, defaults to bridge IP if eb)
   -m netmask          : Netmask (if specifying a Gateway)
-  -a addr             : Use addr as address or dhcp to use dhclient in Jail
-EOT
+  -a addr             : Use addr as address or 'dhcp' to use dhclient in Jail
+EOF
+  exit 0
+}
+
+help::console(){
+  cat <<EOF
+Usage: jailer console jail
+  Open \$SHELL inside jail
+EOF
+  exit 0
+}
+
+help::destroy(){
+  cat <<EOF
+Usage: jailer destroy jail
+  Destroys jail; Might fail is a resource is busy
+EOF
   exit 0
 }
 
 help::edit(){
-  cat << EOT
+  cat <<EOF
 Usage: jailer edit jail
-EOT
+  Respects \$EDITOR
+EOF
   exit 0
 }
 
 help::nat(){
-  cat << EOT
+  cat <<EOF
 Usage jailer nat ...
   list [jail]
   add -i interface [ -a my.second.ip.addr ] jail
   del jail
-EOT
+EOF
   exit 0
 }
 
 help::rdr(){
-  cat << EOT
+  cat <<EOF
 Usage: jailer rdr ...
   list [jail]
   add -i interface [ -a my.second.ip.addr ] [ -p tcp|udp -r recvport [ -d destport ] ] jail
   del -j jail [ -i rule_index | -f ] ; -f deletes all rules for jail
-EOT
-  exit 0
-}
-
-help::edit(){
-  cat << EOT
-Usage: jailer edit name
-EOT
+EOF
   exit 0
 }

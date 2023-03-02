@@ -23,10 +23,10 @@ init::init(){
   # XXX: To be removed soon!
   # Regardless of the following sanity checks etc. check if the patch
   # for jail.conf.d is already applied
-  grep "_jconfdir" /etc/rc.d/jail >/dev/null 2>&1
+  grep "jail_conf_dir" /etc/rc.d/jail >/dev/null 2>&1
   if [ $? -ne 0 ]; then
     printf "Patching jail service for jail.conf.d support: "
-    patch -u /etc/rc.d/jail -i ${LIB}/init/jail_confdir.patch
+    cp -v /etc/rc.d/jail /etc/rc.d/jail.origin && cp -v ${LIB}/init/jail /etc/rc.d/jail
     if [ $? -eq 0 ]; then
       printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
     else

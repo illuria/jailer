@@ -34,9 +34,9 @@ cmd::parse(){
         rdr)              net::rdr_parse   "$@"  ;;
         snap|snapshot)    zfs::snapshot    "$@"  ;;
         start)            jail::start      "$@"  ;;
-        startall)         util::tbd              ;;
+        startall)         service jail start     ;;
         stop)             jail::stop       "$@"  ;;
-        stopall)          util::tbd              ;;
+        stopall)          service jail stop      ;;
         *)                util::err "Unknown command '${_user_cmd}'. Please run 'jailer usage' for help" ;;
     esac
 }

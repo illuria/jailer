@@ -15,7 +15,11 @@ jail::list(){
   _jformstp='{:name}^{:state}\n'
   {
     [ ! -z ${_json} ]  && printf '[' || xo "${_jformact}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4" "GW"
-      for _j in $(sysrc -n jail_list);
+    _jail_list=$(sysrc -n jail_list)
+    _jail_conf_dir=$(for _j in $(find /etc/jail.conf.d -name '*.conf'); do basename ${_j} | sed 's/\.conf$/ /'; done)
+    _jls=$(jls name)
+    _all_jails=$( printf "%s\n" ${_jail_list} ${_jail_conf_dir} ${_jls} | sort -u)
+    for _j in ${_all_jails};
       do
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
@@ -93,7 +97,7 @@ jail::get_next_id(){
 jail::start(){
   for _name in $@; do
     printf "Starting ${_name}: "
-    jail -f /etc/jail.conf.d/${_name}.conf -c ${_name} > /dev/null 2>&1
+    service jail start ${_name} > /dev/null 2>&1
     [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
                  || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
   done
@@ -103,7 +107,7 @@ jail::stop(){
   for _name in $@; do
     printf "Stopping ${_name}: "
     if (jls -j ${_name} > /dev/null 2>&1); then
-      jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1
+      service jail stop ${_name}
       [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
                    || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
     else
@@ -114,6 +118,7 @@ jail::stop(){
 
 jail::destroy(){
   local _name="$1"
+  [ ${_name} = "help" ] && help::destroy
 
   printf "Destroying ${_name}: "
 
@@ -134,7 +139,7 @@ jail::destroy(){
 
 jail::_destroyzfs(){
   local _name="$1"
-  sleep 2
+  sleep 1
   zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
 }
 
@@ -168,7 +173,7 @@ jail::image::_checksum(){
 
 jail::image(){
   if [ $# -eq 0 ]; then
-    _errormsg=$(cat << EOF
+    _errormsg=$(cat <<EOF
 Insufficient number of arguments: Needs one of the following subcommands:
 
     1. jailer image fetch [version] -> fetch either the specified
@@ -456,7 +461,7 @@ EOF
 jail::console() {
   local _name="$1"
   jail::checkexists ${_name}
-  jexec -l ${_name} /bin/tcsh
+  jexec -l ${_name}
 }
 
 jail::edit() {
@@ -465,6 +470,9 @@ jail::edit() {
   [ $# -lt 1 ] && help::edit
 
   local _name="$1"
+
+  [ ${_name} = "help" ] && help::edit
+
   local _file="/etc/jail.conf.d/${_name}.conf"
   if [ ! -e ${_file} ]; then
     util::err "Configuration file for ${_name} does not exist"
