@@ -1,8 +1,12 @@
 #!/bin/sh
 
 util::err() {
-  echo "${progname}: ERROR: $1" >&2
+  printf "\n${progname}: ${COLOUR_SET_R}ERROR: $1 ${COLOUR_END}\n" >&2
   exit 1
+}
+
+util::warn() {
+  printf "\n${COLOUR_SET_Y}WARN:${COLOUR_END} $1\n" >&2
 }
 
 util::tbd() {
@@ -20,7 +24,8 @@ Usage: jailer ...
     image list [version]
     image list remote
     image use [version]
-    create [-r version | -s snap] [-n] [-t eb|ng] [-b bridge|interface] [-d domain] [-g gateway -m netmask] [-a addr] [name]
+    create  [-D] [-r version | -s snap] [-n] [-d domain]
+            [-b bridge] [-t eb|ng] [-g gateway -m netmask] [-a addr] [name]
     destroy name
     list
     start [name ...]
@@ -41,6 +46,4 @@ util::version(){
   printf "v%s\nr%s\n" ${VERSION} ${VERSION_INT}
 }
 
-util::warn() {
-  echo "WARN: $1" >&2
-}
+

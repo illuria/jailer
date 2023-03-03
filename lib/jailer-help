@@ -14,8 +14,10 @@ help::parse_help(){
 
 help::create(){
   cat <<EOF
-Usage:  jailer create  [-r version | -s snap] [-t eb|ng] [-b bridge] [-n] [-d domain] [-g gateway -m netmask] [-a addr] [name]
+Usage:  jailer create  [-D] [-r version | -s snap] [-n] [-d domain]
+                       [-b bridge] [-t eb|ng] [-g gateway -m netmask] [-a addr] [name]
 Options:
+  -D                  : Dry run
   -r version          : FreeBSD-version as base of Jail; defaults to uname -r
   -s snapshot         : Clone from snapshot as base of Jail
   -n                  : Make Jail less noisy

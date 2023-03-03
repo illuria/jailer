@@ -66,7 +66,7 @@ jail::info(){
       _hostname=$(jexec ${_jname} hostname)
       _jid=$(jls -j ${_jname} jid)
       _ipaddr=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
-      _gateway=$(jexec ${_jname} route -n get default 2>/dev/null | awk '/gateway/ {print $2}')
+      _gateway=$(jexec ${_jname} route -n get default 2>/dev/null | awk '/gateway/ {print $2; exit;}')
       _netmask=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/netmask/ {print $4}')
       _state="Active"
       _format="${_jformact}"
@@ -98,8 +98,8 @@ jail::start(){
   for _name in $@; do
     printf "Starting ${_name}: "
     service jail start ${_name} > /dev/null 2>&1
-    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
+    jls -j ${_name} >/dev/null 2>&1 && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n") && return 1
   done
 }
 
@@ -107,17 +107,30 @@ jail::stop(){
   for _name in $@; do
     printf "Stopping ${_name}: "
     if (jls -j ${_name} > /dev/null 2>&1); then
-      service jail stop ${_name}
-      [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-                   || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
+      if service jail stop ${_name} > /dev/null 2>&1 ; then
+        > /dev/null 2>&1 \
+        umount ${jailer_dir}/${_name}/dev
+        printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+      else
+        printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+      fi
     else
-      printf "${COLOUR_SET_R}Failed! (is not an active jail)${COLOUR_END}\n"
+      printf "${COLOUR_SET_R}${_name} is not an active jail${COLOUR_END}\n"
     fi
   done
 }
 
 jail::destroy(){
-  local _name="$1"
+  local _name _opt
+
+  while getopts f _opt; do
+    case ${_opt} in
+      f) _force="-f" ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _name="${1:-help}"
   [ ${_name} = "help" ] && help::destroy
 
   printf "Destroying ${_name}: "
@@ -129,18 +142,18 @@ jail::destroy(){
   if ! zfs list ${JAILER_ZFS_DATASET}/${_name} > /dev/null 2>&1; then
     printf "${COLOUR_SET_R}Failed! (does not exist)${COLOUR_END}\n"
   else
-    jail::_destroyzfs ${_name}
+    jail::_destroyzfs ${_name} ${_force}
 
     rm /etc/jail.conf.d/${_name}.conf > /dev/null 2>&1
-    sysrc jail_list-="${_name}"       > /dev/null 2>&1
     printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
   fi
 }
 
 jail::_destroyzfs(){
   local _name="$1"
+  local _force="$2"
   sleep 1
-  zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
+  zfs destroy ${_force} -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
 }
 
 jail::image::extract(){
@@ -297,10 +310,13 @@ set_eb_vars(){
   exec.prestart  += "ifconfig epair\${id}a up descr vnet-\${name}";
   exec.prestart  += "ifconfig \${bridge} addm epair\${id}a up";
 
+  exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
+  exec.start     += "/bin/sh /etc/rc";
+
+  exec.stop       = "/bin/sh /etc/rc.shutdown jail";
   exec.poststop   = "ifconfig \${bridge} deletem epair\${id}a";
   exec.poststop  += "ifconfig epair\${id}a destroy";
 
-  exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
 EOF
 )
 }
@@ -311,6 +327,8 @@ set_os_vars(){
   _netvars=$(cat <<EOF
   interface       = \${bridge};
   ip4.addr        = ${_addr};
+  exec.start      = "/bin/sh /etc/rc";
+  exec.stop       = "/bin/sh /etc/rc.shutdown jail";
 EOF
 )
 }
@@ -320,9 +338,9 @@ jail::create(){
   local _version _snap
   local _vnet _addr _gw _netmask _resolver
   local _bridge _domain=${HOSTNAME}
-  local _silent
+  local _silent _dry_run _output
 
-  while getopts :a:b:c:d:e:f:g:m:nr:s:t: _opt; do
+  while getopts :a:b:c:d:e:f:g:m:nr:s:t:D _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _bridge="${OPTARG}" ;;
@@ -334,15 +352,20 @@ jail::create(){
       r) _version="${OPTARG}" ;;
       s) _snap="${OPTARG}" ;;
       t) _vnet="${OPTARG}" ;;
+      D) _dry_run="yes";;
       *) util::usage ;;
     esac
   done
   shift $((OPTIND - 1))
 
-  _name="${1:-$(uuidgen)}"
+  _name="${1:-$(uuidgen -r | cut -d '-' -f 5)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
   _default_image=$(jailer image use 2>/dev/null)
+
+  [ "${_name}" = "help" ] && help::create
+  _output="/etc/jail.conf.d/${_name}.conf"
+  [ "${_dry_run}" = "yes" ] && _output="/dev/stdout"
 
   if [ -z "${_version}" ]; then
     if [ ! -z "${_default_image}" ]; then
@@ -370,7 +393,7 @@ jail::create(){
   then
     [ -z "${_addr}" ]    && _addr="dhcp"
     [ -z "${_bridge}" ]  && _bridge="bridge0"
-    [ -z "${_gw}" ]      && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
+    [ -z "${_gw}" ]      && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2; exit;}')
     [ -z "${_netmask}" ] && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4; exit;}')
   fi
 
@@ -391,10 +414,14 @@ EOF
   esac
 
   # Creation begins ...
-  printf "Creating ${_name}: "
+  if [ "${_dry_run}" = "yes" ]; then
+    printf "${COLOUR_SET_B}jail.conf file =>${COLOUR_END}\n"
+  else
+    printf "Creating ${_name}: "
+  fi
 
   # Generate the configuration file
-  cat << EOF > /etc/jail.conf.d/${_name}.conf
+  cat << EOF > $_output
 # vim: set syntax=sh:
 exec.clean;
 allow.raw_sockets;
@@ -406,7 +433,6 @@ ${_devfsvars}
   \$bridge         = "${_bridge}";
   \$domain         = "${_domain}";
 ${_netvars}
-  exec.start     += "/bin/sh /etc/rc";
 
   host.hostname   = "\${name}.\${domain}";
   path            = "${_path}";
@@ -415,47 +441,99 @@ ${_netvars}
 }
 EOF
 
-  # ZFS send / recv
+  # ZFS
   if [ ! -z ${_snap} ]; then
-    (zfs send ${JAILER_ZFS_DATASET}/${_snap} |
-     zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    _zfscmd="
+  (zfs send ${JAILER_ZFS_DATASET}/${_snap} |
+   zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    "
   else
-    (zfs send ${JAILER_ZFS_DATASET}/image/${_version}@base |
-     zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    _zfscmd="
+  (zfs send ${JAILER_ZFS_DATASET}/image/${_version}@base |
+   zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    "
+  fi
+  if [  "${_dry_run}" != "yes" ]; then
+    eval "${_zfscmd}"
+  else
+    printf "${COLOUR_SET_B}ZFS commands =>${COLOUR_END}\n"
+    echo "${_zfscmd}"
   fi
 
   # Set the resolver
   if [ ! -z ${_resolver} ]; then
-    echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+    _resolvcmd=$(cat <<EOF
+  echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+EOF
+)
   else
-    cp /etc/resolv.conf "${_path}/etc/resolv.conf"
+    _resolvcmd=$(cat <<EOF
+  cp /etc/resolv.conf "${_path}/etc/resolv.conf"
+EOF
+)
+  fi
+  if [ "${_dry_run}" != "yes" ]; then
+    eval "${_resolvcmd}"
+  else
+    printf "${COLOUR_SET_B}Resolver commands =>${COLOUR_END}\n"
+    echo "${_resolvcmd}"
   fi
 
   # Set MAC address if using dhcp
   if [ "${_addr}" = "dhcp" -a "${_vnet}" = "eb" ]; then
-    echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
-    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP" > /dev/null 2>&1
+    _netcmd=$(cat <<EOF
+  echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
+  sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP"
+EOF
+)
   # Otherwise use the provided address
   elif [ "${_vnet}" = "eb" ]; then
+    _netcmd=$(cat <<EOF
+  sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
+  sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
+EOF
+)
+  fi
+  if [ "${_dry_run}" != "yes" ]; then
     > /dev/null 2>&1 \
-      sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
-    > /dev/null 2>&1 \
-      sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
+    eval "${_netcmd}"
+  else
+    printf "${COLOUR_SET_B}Network setup commands =>${COLOUR_END}\n"
+    echo "${_netcmd}"
   fi
 
   # Set silent if required
   if [ ! -z ${_silent} ]; then
-    sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" \
-      sendmail_enable="NONE" syslogd_flags="-ss"        \
-      > /dev/null 2>&1
+    _sysrcncmd=$(cat <<EOF
+  sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO"
+EOF
+)
+  fi
+  # ALWAYS disable sendmail and secure syslogd
+  _sysrccmd=$(cat <<EOF
+  sysrc -q -f "${_path}"/etc/rc.conf sendmail_enable="NONE" syslogd_flags="-ss"
+EOF
+)
+  if [ "${_dry_run}" != "yes" ]; then
+    > /dev/null 2>&1 \
+    eval "${_sysrcncmd}"
+    > /dev/null 2>&1 \
+    eval "${_sysrccmd}"
+  else
+    printf "${COLOUR_SET_B}Post-Installation =>${COLOUR_END}\n"
+    echo "${_sysrccmd}"
+    echo "${_sysrcncmd}"
   fi
 
-  sysrc -q jail_list+="${_name}" > /dev/null 2>&1
-  if !(jail::start ${_name} >/dev/null 2>&1); then
-    jail::exception::create
+
+
+  if [ "${_dry_run}" != "yes" ]; then
+    >/dev/null 2>&1 \
+    jail::start ${_name}
+    >/dev/null 2>&1 \
+    jls -j ${_name} || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && jail::exception::create )
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
   fi
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-               || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && return 1)
 }
 
 jail::console() {
