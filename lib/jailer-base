@@ -21,12 +21,12 @@ cmd::parse_init "$@"
 
 [ -z "$rc_force" ] && ! checkyesno jail_enable && util::err "jail service is not enabled in /etc/rc.conf, please run 'jailer init' or enable it manually"
 [ -z "${jailer_dir}" ] && util::err "jailer_dir is not set in /etc/rc.conf, please run 'jailer init' or set it manually"
-grep jconfdir /etc/rc.d/jail > /dev/null || util::err "/etc/rc.d/jail is not patched, please run 'jailer init'"
+grep jail_conf_dir /etc/rc.d/jail > /dev/null || util::err "/etc/rc.d/jail is not patched, please run 'jailer init'"
 
 # Basic Setup
 
-[ ! -d "/etc/jail.conf.d" ] && mkdir /etc/jail.conf.d
-[ ! -d "/var/log/jail" ]    && mkdir /var/log/jail
+[ ! -d "/etc/jail.conf.d" ] && mkdir -p /etc/jail.conf.d
+[ ! -d "/var/log/jail" ]    && mkdir -p /var/log/jail
 
 zfs::init
 

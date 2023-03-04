@@ -25,6 +25,7 @@ extra_commands="config console status"
 : ${jail_consolecmd:=/usr/bin/login -f root}
 : ${jail_jexec:=/usr/sbin/jexec}
 : ${jail_jls:=/usr/sbin/jls}
+: ${jail_conf_dir:=/etc/jail.conf.d}
 
 need_dad_wait=
 

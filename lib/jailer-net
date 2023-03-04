@@ -2,6 +2,7 @@
 
 net::rdr_parse() {
   [ $# -eq 0 ] && help::rdr
+  shift
   case "${1}" in
     list)   net::rdr_list "$@"  ;;
     add)    net::rdr_add "$@"   ;;
@@ -11,6 +12,7 @@ net::rdr_parse() {
 
 net::nat_parse(){
   [ $# -eq 0 ] && help::nat
+  shift
   case "${1}" in
     list)   net::nat_list "$@"  ;;
     add)    net::nat_add "$@"   ;;
@@ -19,7 +21,6 @@ net::nat_parse(){
 }
 
 net::rdr_list(){
-  shift
   _name="$1"
   if [ -z "${_name}" ]; then
     cat /etc/jail.conf.d/.pf.rdr.jailer.conf
@@ -34,7 +35,6 @@ net::rdr_list(){
 net::rdr_add() {
   local _name _recvport _destport _interface _addr
 
-  shift
   while getopts :i:r:d:a:p: _opt; do
     case ${_opt} in
       a)  _addr="${OPTARG}"       ;;
@@ -79,16 +79,15 @@ net::rdr_add() {
 }
 
 net::rdr_del() {
-  shift
-  while getopts :fj:i: _opt; do
+  while getopts :fi: _opt; do
     case ${_opt} in
       i)  _index="${OPTARG}"  ;;
-      j)  _jail="${OPTARG}"   ;;
       f)  _flush="yes"        ;;
       *)  help::rdr           ;;
     esac
   done
   shift $((OPTIND - 1))
+  _jail="${1}"
 
   if grep ${_jail} /etc/jail.conf.d/.pf.rdr.jailer.conf; then
     [ -z "${_jail}" ] && util::err "Please specify jail with -j jailname"
@@ -103,7 +102,6 @@ net::rdr_del() {
 }
 
 net::nat_list(){
-  shift
   _name="$1"
   if [ -z "${_name}" ]; then
     cat /etc/jail.conf.d/.pf.nat.jailer.conf
@@ -118,7 +116,6 @@ net::nat_list(){
 net::nat_add() {
   local _name _addr _interface
 
-  shift
   while getopts :i:a: _opt; do
     case ${_opt} in
       a)  _addr="${OPTARG}"       ;;
@@ -148,8 +145,6 @@ net::nat_add() {
 net::nat_del(){
   local _jail
 
-  shift
-
   _jail="${1}"
   [ -z "${_jail}" ] && help::nat
   if grep ${_jail} /etc/jail.conf.d/.pf.nat.jailer.conf; then
@@ -159,4 +154,9 @@ net::nat_del(){
     echo "No rule for ${_jail}"
     exit 1
   fi
+}
+
+net::get_avail_addr(){
+  _bridge="${1}"
+  _addr=$(/usr/libexec/flua ${LIB}/lua/avail_addr.lua ${_bridge})
 }

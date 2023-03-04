@@ -322,8 +322,8 @@ EOF
 }
 
 set_os_vars(){
-  [ -z "${_addr}" ]   && util::err "non-VNET networking requires IP address"
   [ -z "${_bridge}" ] && _bridge="lo0"
+  [ -z "${_addr}" ]   && net::get_avail_addr "${_bridge}"
   _netvars=$(cat <<EOF
   interface       = \${bridge};
   ip4.addr        = ${_addr};

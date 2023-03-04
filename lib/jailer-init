@@ -1,12 +1,12 @@
 #!/bin/sh
 
 init::zfs::info(){
-  printf "${COLOUR_SET_B}Will create\n"
-  printf "${COLOUR_SET_M}dataset:${COLOUR_SET_C} $_dataset\n"
-  printf "${COLOUR_SET_M}mount point:${COLOUR_SET_C} ${_mpoint:-unknown}${COLOUR_END}\n"
+  printf "${COLOUR_SET_B}Jailer will create\n"
+  printf "${COLOUR_SET_M} dataset:${COLOUR_SET_C} $_dataset\n"
+  printf "${COLOUR_SET_M} mount point:${COLOUR_SET_C} ${_mpoint:-unknown}${COLOUR_END}\n"
 }
 
-init::zfs(){
+init::zfs::execute(){
   printf "${COLOUR_SET_B}Creating ZFS dataset "
   printf "${COLOUR_SET_C}$_dataset ${COLOUR_SET_B}"
   printf "with the mount point ${COLOUR_SET_C}${_mpoint:-unknown}${COLOUR_END}: "
@@ -16,37 +16,15 @@ init::zfs(){
     util::err "Run this command to figure out why ZFS failed:\n $_zcmd"
   else
     printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+    # Initialise the world (main section, if reached)
+    printf "${COLOUR_SET_B}Setting jailer_dir in rc.conf${COLOUR_END}: "
+    sysrc jailer_dir="zfs:$_dataset" > /dev/null 2>&1
+    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+      || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
   fi
 }
 
-init::init(){
-  local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
-  local _yes
-
-  shift
-  while getopts d:m:nyz: _opt; do
-    case ${_opt} in
-      d)  _dataset="${OPTARG}" && opt_d=true ;;
-      m)  _mpoint="${OPTARG}"                ;;
-      n)  _nodef=true                        ;;
-      y)  _yes=true                          ;;
-      z)  _zpool="${OPTARG}"   && opt_z=true ;;
-    esac
-  done
-  shift $((OPTIND - 1))
-
-  [ "${1}" = "help" ] && man jailer-init && exit
-  # XXX: It needs to be improved!
-  # Check if jailer is already initialised
-  ${_initialised:=false} # Assume it is not
-  _rcval=$(sysrc -nq jailer_dir)
-  [ ${#_rcval} -ne 0 ] && _initialised=true
-
-  # If jailer is initialised beforehand, inform the user and exit
-  if $_initialised; then
-    util::err "Jailer seems to be already initialised (manually, perhaps?)"
-  fi
-
+init::zfs::parse(){
   # Infer pool name
   _zpool_no="$(zpool list -H -o name | wc -l)"
   if [ "$_zpool_no" -eq 0 ]; then
@@ -80,32 +58,55 @@ init::init(){
   else
     _zcmd="zfs create $_dataset"
   fi
+}
 
+init::zfs(){
   ${_yes:=false}
   if ! ${_yes}; then
     init::zfs::info
     read -p "OK? (y/N) " _yes
     if [ "${_yes}" = "y" -o "${_yes}" = "yes" ]; then
-      init::zfs
+      init::zfs::execute
     else
       exit 0
     fi
   else
-    init::zfs
+    init::zfs::execute
   fi
+}
 
-  # Enable the jail service first
-  printf "${COLOUR_SET_B}Enabling the jail service${COLOUR_END}: "
-  service jail enable > /dev/null 2>&1
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+init::info(){
+  printf "${COLOUR_SET_B}Checking system state...${COLOUR_END}\n"
+  printf "${COLOUR_SET_M} jail_enable in rc.conf  ==> ${COLOUR_END}"
+  if checkyesno "jail_enable" ; then
+    printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+    printf "${COLOUR_SET_M} patched rc.d/jail file  ==> ${COLOUR_END}"
+    if grep -q "jail_conf_dir" /etc/rc.d/jail ; then
+      printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+    else
+      printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+    fi
+    printf "${COLOUR_SET_B}Checking jailer state...${COLOUR_END}\n"
+    printf "${COLOUR_SET_M} jailer_dir in rc.conf   ==> ${COLOUR_END}"
+    if [ ! -z $_rcval ]; then
+      zfs::init
+      printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} jailer_dir is define to ==> ${COLOUR_END}"
+      printf "${COLOUR_SET_C}${_rcval}${COLOUR_END}\n"
 
-  # Initialise the world (main section, if reached)
-  printf "${COLOUR_SET_B}Setting jailer_dir in rc.conf${COLOUR_END}: "
-  sysrc jailer_dir="zfs:$_dataset" > /dev/null 2>&1
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} Jailer ZFS dataset      ==> ${COLOUR_END}"
+      printf "${COLOUR_SET_C}${JAILER_ZFS_DATASET}${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} Jailer ZFS mountpoint   ==> ${COLOUR_END}"
+      printf "${COLOUR_SET_C}${jailer_dir}${COLOUR_END}\n"
+    else
+      printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+    fi
+  else
+    printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+  fi
+}
 
+init::patch(){
   # Apply illuria's patches
   grep "jail_conf_dir" /etc/rc.d/jail >/dev/null 2>&1
   if [ $? -ne 0 ]; then
@@ -118,4 +119,54 @@ init::init(){
       util::warn "Could not patch rc.d/jail, you need to take care of it manually"
     fi
   fi
+}
+
+init::init(){
+  local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
+  local _yes
+
+  # XXX: It needs to be improved!
+  # Check if jailer is already initialised
+  ${_initialised:=false} # Assume it is not
+  _rcval=$(sysrc -nq jailer_dir)
+  [ ${#_rcval} -ne 0 ] && _initialised=true
+
+  shift
+  while getopts d:m:nyz: _opt; do
+    case ${_opt} in
+      d)  _dataset="${OPTARG}" && opt_d=true ;;
+      m)  _mpoint="${OPTARG}"                ;;
+      n)  _nodef=true                        ;;
+      y)  _yes=true                          ;;
+      z)  _zpool="${OPTARG}"   && opt_z=true ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _subcommand="${1}"
+
+  init::zfs::parse
+  [ "${_subcommand}" = "zfs"   ] && init::zfs       && exit
+  [ "${_subcommand}" = "help"  ] && man jailer-init && exit
+  [ "${_subcommand}" = "info"  ] && init::info      && exit
+  [ "${_subcommand}" = "patch" ] && init::patch     && exit
+
+
+  # If jailer is initialised beforehand, inform the user and exit
+  if $_initialised; then
+    util::warn "Jailer seems to be already initialised (manually, perhaps?)"
+    init::info
+    exit 1
+  fi
+
+  init::zfs
+
+  # Enable the jail service first
+  printf "${COLOUR_SET_B}Enabling the jail service${COLOUR_END}: "
+  service jail enable > /dev/null 2>&1
+  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+
+  init::patch
+  exit 0
 }
