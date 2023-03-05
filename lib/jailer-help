@@ -6,6 +6,8 @@ help::parse_help(){
     console)  help::console ;;
     destroy)  help::destroy ;;
     edit)     help::edit    ;;
+    init)     help::init    ;;
+    network)  help::network ;;
     nat)      help::nat     ;;
     rdr)      help::rdr     ;;
     *)        util::usage   ;;
@@ -18,15 +20,46 @@ Usage:  jailer create  [-D] [-r version | -s snap] [-n] [-d domain]
                        [-b bridge] [-t eb|ng] [-g gateway -m netmask] [-a addr] [name]
 Options:
   -D                  : Dry run
-  -r version          : FreeBSD-version as base of Jail; defaults to uname -r
+                        Prints the jail.conf file, ZFS commands and post-installation
+                        commands that Jailer would run
+
+  -r version          : FreeBSD-version as base of Jail
+                        version can be XX.X-RELEASE, defaults to \`jailer image use\`
+                        if set, otherwise to \`uname -r\`
+
   -s snapshot         : Clone from snapshot as base of Jail
+                        \`snapshot\` can be jail@snapname or images/XX.X-RELEASE@snapname
+                        if you want to clone a release
+
   -n                  : Make Jail less noisy
+                        Disables cron hence making the system less noisy
+
   -d domain           : Set Jail's domain
-  -t network_type     : Network Type; defaults to none (inherit), can be eb (epair/bridge)
-  -b bridge|interface : Attach to interface (if inherit) or bridge (if epair/bridge)
-  -g gateway          : Set Jail's gateway (ignored if inherit, defaults to bridge IP if eb)
-  -m netmask          : Netmask (if specifying a Gateway)
-  -a addr             : Use addr as address or 'dhcp' to use dhclient in Jail
+                        Sets jail's \`host.hostname\` parameter, defaults to \`hostname\`
+
+  -t network_type     : Network Type
+                        - \`none\`                (vnet=inherit)
+                        - \`eb\` for epair/bridge (vnet=new)
+                        - \`ng\` for netgraph     (vnet=new) (BETA)
+                        Defaults to \`jailer default nettype\` if set, otherwise to \`none\`
+
+  -b bridge|interface : Attach to interface (if inherit or ng) or bridge (if eb)
+                        Defaults to \`lo0\` if \`none\`. \`bridge0\` if \`eb\`
+
+  -g gateway          : Set Jail's gateway
+                        Ignored for vnet=inherit
+                        Defaults to bridge's IP address if vnet=new
+
+  -m netmask          : Netmask
+                        Ignored for vnet=inherit
+                        Defaults to bridge's netmask if vnet=new
+
+  -a addr             : Jail's IP address. Can be IP address
+                        If vnet=inherit and not set, then Jailer will assign the first available address on \`interface\`
+                        If vnet=new, then can be \`dhcp\`
+
+  name                : Jails's name
+                        If \`name\` is missing, then Jailer will assign a UUID
 EOF
   exit 0
 }
@@ -41,8 +74,9 @@ EOF
 
 help::destroy(){
   cat <<EOF
-Usage: jailer destroy jail
+Usage: jailer destroy [-f] jail
   Destroys jail; Might fail is a resource is busy
+  Use -f to force destroy
 EOF
   exit 0
 }
@@ -51,6 +85,26 @@ help::edit(){
   cat <<EOF
 Usage: jailer edit jail
   Respects \$EDITOR
+EOF
+  exit 0
+}
+
+help::init(){
+  cat <<EOF
+Usage: jailer init ...
+  info    : Show system and Jailer setup info
+  patch   : Apply Jailer's rc.d/jail patch
+  zfs     : Create ZFS datasets
+  bridge  : auto-configure bridge0
+  dhcp    : Install and setup OpenBSD's DHCP server
+EOF
+  exit 0
+}
+
+help::network(){
+  cat <<EOF
+Usage jailer network ...
+  use     : Set default network type, can be \`none\`, \`eb\`, \`ng\`
 EOF
   exit 0
 }

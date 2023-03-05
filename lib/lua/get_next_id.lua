@@ -23,7 +23,7 @@ end
 
 table.sort(ids)
 if (#ids == 0) then
-  print(0)
+  print(1)
 else
   for i = 1, #ids do
     if (ids[i]+1 ~= ids[i+1]) then

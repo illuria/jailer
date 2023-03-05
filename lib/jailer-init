@@ -1,9 +1,25 @@
 #!/bin/sh
 
+init::thankyou(){
+  printf "\n"
+  printf "Please report any problems at https://github.com/illuria/jailer/issues\n"
+  printf "The latest information about Jailer is available at https://jailer.dev/\n"
+  printf "Consider joining Jailer's worldwide community:\n"
+  printf " https://github.com/illuria/jailer\n"
+  printf "\n"
+  printf "Thank you for choosing Jailer!\n"
+}
+
+init::suggest(){
+  printf "\n"
+  printf "${COLOUR_SET_Y}You may run \`${progname} init info\` to check system status\n"
+  printf "You may run \`${progname} init bridge\` to setup advanced networking${COLOUR_END}\n"
+}
+
 init::zfs::info(){
   printf "${COLOUR_SET_B}Jailer will create\n"
-  printf "${COLOUR_SET_M} dataset:${COLOUR_SET_C} $_dataset\n"
-  printf "${COLOUR_SET_M} mount point:${COLOUR_SET_C} ${_mpoint:-unknown}${COLOUR_END}\n"
+  printf "${COLOUR_SET_M} dataset     :${COLOUR_SET_C} $_dataset\n"
+  printf "${COLOUR_SET_M} mount point :${COLOUR_SET_C} ${_mpoint:-unknown}${COLOUR_END}\n"
 }
 
 init::zfs::execute(){
@@ -101,6 +117,28 @@ init::info(){
     else
       printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
     fi
+    printf "${COLOUR_SET_B}Checking network status...${COLOUR_END}\n"
+    printf "${COLOUR_SET_M} bridge0 in rc.conf      ==> ${COLOUR_END}"
+    if (sysrc -n cloned_interfaces | tr ' ' '\n' | grep -q '^bridge0$') ; then
+      printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} bridge0 is interfaces   ==> ${COLOUR_END}"
+      if ifconfig bridge0 1>/dev/null 2>&1 ; then
+        printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+        printf "${COLOUR_SET_M} bridge0 uses IP address ==> ${COLOUR_END}"
+        _bridge0ip=$(ifconfig bridge0 | awk '/inet / {print $2; exit}')
+        if [ ! -z "${_bridge0ip}" ]; then
+          printf "${COLOUR_SET_C}${_bridge0ip}${COLOUR_END}\n"
+        else
+          printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+        fi
+      else
+        printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+        printf "${COLOUR_SET_Y}  Run \`service netif start bridge0\` to start the bridge${COLOUR_END}\n"
+      fi
+    else
+      printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+      printf "${COLOUR_SET_Y}  If you want Jailer to auto-configure bridge interfaces, run \`jailer init bridge\`${COLOUR_END}\n"
+    fi
   else
     printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
   fi
@@ -118,6 +156,113 @@ init::patch(){
       printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
       util::warn "Could not patch rc.d/jail, you need to take care of it manually"
     fi
+  fi
+}
+
+init::bridge::info(){
+  printf "${COLOUR_SET_B}Jailer will configure\n"
+  printf "${COLOUR_SET_M} network interface :${COLOUR_SET_C} bridge0\n"
+  printf "${COLOUR_SET_M} network address   :${COLOUR_SET_C} 10.0.0.1/24${COLOUR_END}\n"
+}
+
+init::bridge::execute(){
+  _bridge='bridge0'
+  _addr="10.0.0.1/24"
+  _bcmd=$(cat <<EOF
+  sysrc cloned_interfaces+="${_bridge}"
+  sysrc ifconfig_${_bridge}="inet ${_addr} up"
+  service netif start bridge0
+EOF
+)
+  printf "${COLOUR_SET_B}Configuring interface ${COLOUR_SET_C}${_bridge} "
+  printf "${COLOUR_SET_B}with IP address ${COLOUR_SET_C}${_addr}${COLOUR_END}: "
+  if eval "${_bcmd}" > /dev/null 2>&1 ; then
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+    printf "${COLOUR_SET_Y}\nYou may run \`${progname} init dhcp\` to setup DHCP server for ${_bridge}${COLOUR_END}\n"
+  else
+    printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+    util::err "Run this command to figure out why network config failed:\n $_bcmd"
+  fi
+}
+
+init::bridge(){
+  ${_yes:=false}
+  if ! ${_yes}; then
+    init::bridge::info
+    read -p "OK? (y/N) " _yes
+    if [ "${_yes}" = "y" -o "${_yes}" = "yes" ]; then
+      init::bridge::execute
+    else
+      exit 0
+    fi
+  else
+    init::bridge::execute
+  fi
+}
+
+init::dhcp::info(){
+  printf "${COLOUR_SET_B}Jailer will\n"
+  printf "${COLOUR_SET_M} - Install OpenBSD's ${COLOUR_SET_C}dhcpd${COLOUR_SET_M} from packages.\n"
+  printf "${COLOUR_SET_M} - Setup ${COLOUR_SET_C}dhcpd.conf${COLOUR_SET_M}.\n"
+  printf "${COLOUR_SET_M} - Create ${COLOUR_SET_C}/etc/devfs.rules${COLOUR_SET_M} for VNET Jails.\n"
+  printf "${COLOUR_END}"
+}
+
+init::dhcp::execute(){
+  _confpath="/usr/local/etc/dhcpd.conf"
+  _conf=$(cat <<EOF
+subnet 10.0.0.0 netmask 255.255.255.0 {
+  range 10.0.0.2 10.0.0.254;
+  option subnet-mask 255.255.255.0;
+  option routers 10.0.0.1;
+}
+EOF
+)
+
+  _devfsrules=$(cat <<EOF
+[vnet=10]
+add path 'bpf*' unhide
+EOF
+)
+
+  _dhcpcmd=$(cat <<EOF
+#Installing dhcpd
+pkg install -y dhcpd
+
+# Generating Configuration
+printf "\n${_conf}\n" > ${_confpath}
+
+#Test configuration and enable/start dhcpd service
+dhcpd -n -f ${_confpath} && service dhcpd enable && service dhcpd start
+
+# Add devfs rule for VNET Jails
+printf "\n${_devfsrules}\n" >> /etc/devfs.rules
+EOF
+)
+
+  printf "${COLOUR_SET_B}Setting up ${COLOUR_SET_C}dhcpd${COLOUR_SET_B}, "
+  printf "${COLOUR_SET_C}dhcpd.conf ${COLOUR_SET_B}and "
+  printf "${COLOUR_SET_C}devfs.rules${COLOUR_END}: "
+  if eval "${_dhcpcmd}" >/dev/null 2>&1 ; then
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+  else
+    printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+    util::err "Run this command to figure out why ZFS failed:\n $_dhcpcmd \n"
+  fi
+}
+
+init::dhcp(){
+  ${_yes:=false}
+  if ! ${_yes}; then
+    init::dhcp::info
+    read -p "OK? (y/N) " _yes
+    if [ "${_yes}" = "y" -o "${_yes}" = "yes" ]; then
+      init::dhcp::execute
+    else
+      exit 0
+    fi
+  else
+    init::dhcp::execute
   fi
 }
 
@@ -146,10 +291,12 @@ init::init(){
   _subcommand="${1}"
 
   init::zfs::parse
-  [ "${_subcommand}" = "zfs"   ] && init::zfs       && exit
-  [ "${_subcommand}" = "help"  ] && man jailer-init && exit
-  [ "${_subcommand}" = "info"  ] && init::info      && exit
-  [ "${_subcommand}" = "patch" ] && init::patch     && exit
+  [ "${_subcommand}" = "zfs"    ] && init::zfs       && exit
+  [ "${_subcommand}" = "help"   ] && help::init      && exit
+  [ "${_subcommand}" = "info"   ] && init::info      && exit
+  [ "${_subcommand}" = "dhcp"   ] && init::dhcp      && exit
+  [ "${_subcommand}" = "patch"  ] && init::patch     && exit
+  [ "${_subcommand}" = "bridge" ] && init::bridge    && exit
 
 
   # If jailer is initialised beforehand, inform the user and exit
@@ -168,5 +315,9 @@ init::init(){
                || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
 
   init::patch
+
+  init::suggest
+
+  init::thankyou
   exit 0
 }

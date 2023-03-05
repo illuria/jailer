@@ -61,7 +61,7 @@ jail::info(){
   _jformact='Name: {:name}\nState: {:state}\nJID: {:jid}\nHostname: {:hostname}\nIPv4: {:ipv4}\nNetmask: {:netmask}\nGateway: {:gateway}\n'
   _jformstp='Name: {:name}\nState: {:state}\n'
 
-  if sysrc -n jail_list | tr ' ' '\n' | grep "^${_jname}$" > /dev/null 2>&1 ; then
+  if service jail config ${_jname} >/dev/null 2>&1 ; then
     if jls -j ${_jname} > /dev/null 2>&1 ; then
       _hostname=$(jexec ${_jname} hostname)
       _jid=$(jls -j ${_jname} jid)
@@ -83,7 +83,6 @@ jail::info(){
   xo --style "${_style}" "${_format}" "${_jname}" "${_state}" "${_jid}" "${_hostname}" "${_ipaddr}" "${_netmask}" "${_gateway}"
   [ ! -z ${_json} ] && _style="json" && printf "}"
 }
-
 
 jail::get_next_id(){
   /usr/libexec/flua ${LIB}/lua/get_next_id.lua
@@ -292,8 +291,36 @@ jail::image::use(){
     jailer image list $1 >/dev/null && echo $1 > $_use_file ||
       util::err "No such an image"
   else
-    util::err "Image use command takes at most one argument"
+    util::err "\`image use\` subcommand takes at most one argument"
   fi
+}
+
+jail::network::use(){
+  _nettype_file="${jailer_dir}/.default_nettype"
+
+  shift
+  if [ $# -eq 0 ]; then
+    [ -f $_nettype_file ] && cat $_nettype_file ||
+      echo "No default network type" >&2
+  elif [ $# -eq 1 ]; then
+    if [ $1 = "eb" -o $1 = "ng" -o $1 = "none" ]; then
+      echo $1 > $_nettype_file
+    else
+      util::err "\`$1\` not a valid network type."
+    fi
+  else
+    util::err "\`network use\` subcommand takes at most one argument"
+  fi
+}
+
+jail::network(){
+  if [ $# -eq 0 ]; then
+    help::network
+  fi
+  case $1 in
+    use) jail::network::use "$@"      ;;
+    *)   util::err "Unknown argument" ;;
+  esac
 }
 
 set_eb_vars(){
@@ -356,13 +383,14 @@ jail::create(){
   _name="${1:-$(uuidgen -r | cut -d '-' -f 5)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
-  _default_image=$(jailer image use 2>/dev/null)
+  _default_image=$(jail::image::use 2>/dev/null)
+  _default_nettype=$(jail::network::use 2>/dev/null)
 
   [ "${_name}" = "help" ] && help::create
   _output="/etc/jail.conf.d/${_name}.conf"
   [ "${_dry_run}" = "yes" ] && _output="/dev/stdout"
 
-  if [ -z "${_version}" ]; then
+  if [ -z "${_version}" -a -z "${_snap}" ]; then
     if [ ! -z "${_default_image}" ]; then
       _version=${_default_image}
     else
@@ -377,12 +405,18 @@ jail::create(){
     util::err "${_name} already exists"
   fi
   if [ ! -d ${jailer_dir}/image/${_version} ]; then
-    util::err "${_version} does not exist, try imageping first"
+    util::err "${_version} does not exist, try \`image fetch ${_version}\` first?"
   fi
 
-  # Check the VNET type, can be none, eb or ng
+  # Check the VNET (default) type, can be none, eb or ng
+  if [ -z "${_vnet}" ]; then
+    if [ -n "${_default_nettype}" ]; then
+      _vnet=${_default_nettype}
+    else
+      _vnet="none"
+    fi
+  fi
   [ "${_vnet}" = "ng" ] && util::err "Netgraph is current not supported, please try 'eb' or 'none' (default)"
-
   # First, we check for Gateway and Netmask; If not set, we get it from the bridge
   if [ "${_vnet}" = "eb" ];
   then
@@ -403,9 +437,10 @@ EOF
   fi
 
   case "${_vnet}" in
-    eb) set_eb_vars ;;
-    ng) set_ng_vars ;;
-    *)  set_os_vars ;;
+    eb)    set_eb_vars ;;
+    ng)    set_ng_vars ;;
+    none)  set_os_vars ;;
+    *)     util::err "-t ${_vnet}?? Wait, is there a network type we're not aware of?" ;;
   esac
 
   # Creation begins ...

@@ -18,12 +18,14 @@ util::usage() {
     cat << EOT
 Usage: jailer ...
   version
-  init [info|zfs|patch]
-  help subcommand
+  help [subcommand]
+  [subcommand] help
+  init [info|patch|zfs|bridge|dhcp]
   image fetch [version]
   image list
   image list remote
   image use [version]
+  network use [nettype]
   list
   create  [-D] [-r version | -s snap] [-n] [-d domain]
           [-b bridge] [-t eb|ng] [-g gateway -m netmask] [-a addr] [name]
