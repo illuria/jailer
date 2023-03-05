@@ -303,7 +303,7 @@ jail::network::use(){
     [ -f $_nettype_file ] && cat $_nettype_file ||
       echo "No default network type" >&2
   elif [ $# -eq 1 ]; then
-    if [ $1 = "eb" -o $1 = "ng" -o $1 = "none" ]; then
+    if [ $1 = "eb" -o $1 = "ng" -o $1 = "new" -o $1 = "inherit" ]; then
       echo $1 > $_nettype_file
     else
       util::err "\`$1\` not a valid network type."
@@ -343,12 +343,21 @@ EOF
 )
 }
 
-set_os_vars(){
-  [ -z "${_bridge}" ] && _bridge="lo0"
+set_new_vars(){
+  [ -z "${_bridge}" ] && util::err "When using -t new, an interface should be assigned with -b"
   [ -z "${_addr}" ]   && net::get_avail_addr "${_bridge}"
   _netvars=$(cat <<EOF
   interface       = \${bridge};
   ip4.addr        = ${_addr};
+  exec.start      = "/bin/sh /etc/rc";
+  exec.stop       = "/bin/sh /etc/rc.shutdown jail";
+EOF
+)
+}
+
+set_inherit_vars(){
+  _netvars=$(cat <<EOF
+  ip4             = "inherit";
   exec.start      = "/bin/sh /etc/rc";
   exec.stop       = "/bin/sh /etc/rc.shutdown jail";
 EOF
@@ -380,7 +389,7 @@ jail::create(){
   done
   shift $((OPTIND - 1))
 
-  _name="${1:-$(uuidgen -r | cut -d '-' -f 5)}"
+  _name="${1:-$(uuidgen | cut -d '-' -f 1)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
   _default_image=$(jail::image::use 2>/dev/null)
@@ -408,15 +417,15 @@ jail::create(){
     util::err "${_version} does not exist, try \`image fetch ${_version}\` first?"
   fi
 
-  # Check the VNET (default) type, can be none, eb or ng
+  # Check the VNET (default) type, can be inherit, new, eb or ng
   if [ -z "${_vnet}" ]; then
     if [ -n "${_default_nettype}" ]; then
       _vnet=${_default_nettype}
     else
-      _vnet="none"
+      _vnet="inherit"
     fi
   fi
-  [ "${_vnet}" = "ng" ] && util::err "Netgraph is current not supported, please try 'eb' or 'none' (default)"
+  [ "${_vnet}" = "ng" ] && util::err "Netgraph is current not supported."
   # First, we check for Gateway and Netmask; If not set, we get it from the bridge
   if [ "${_vnet}" = "eb" ];
   then
@@ -437,9 +446,10 @@ EOF
   fi
 
   case "${_vnet}" in
-    eb)    set_eb_vars ;;
-    ng)    set_ng_vars ;;
-    none)  set_os_vars ;;
+    eb)       set_eb_vars ;;
+    ng)       set_ng_vars ;;
+    new)      set_new_vars ;;
+    inherit)  set_inherit_vars ;;
     *)     util::err "-t ${_vnet}?? Wait, is there a network type we're not aware of?" ;;
   esac
 
@@ -498,7 +508,7 @@ EOF
 )
   else
     _resolvcmd=$(cat <<EOF
-  cp /etc/resolv.conf "${_path}/etc/resolv.conf"
+  cp /etc/resolv.conf ${_path}/etc/resolv.conf
 EOF
 )
   fi
@@ -512,15 +522,15 @@ EOF
   # Set MAC address if using dhcp
   if [ "${_addr}" = "dhcp" -a "${_vnet}" = "eb" ]; then
     _netcmd=$(cat <<EOF
-  echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
-  sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP"
+  echo "ifconfig epair${_id}b ether ${_macaddr}" > ${_path}/etc/start_if.epair${_id}b
+  sysrc -q -f ${_path}/etc/rc.conf ifconfig_epair${_id}b="SYNCDHCP"
 EOF
 )
   # Otherwise use the provided address
   elif [ "${_vnet}" = "eb" ]; then
     _netcmd=$(cat <<EOF
-  sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
-  sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
+  sysrc -q -f ${_path}/etc/rc.conf ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
+  sysrc -q -f ${_path}/etc/rc.conf defaultrouter="${_gw}"
 EOF
 )
   fi
@@ -535,13 +545,13 @@ EOF
   # Set silent if required
   if [ ! -z ${_silent} ]; then
     _sysrcncmd=$(cat <<EOF
-  sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO"
+  sysrc -q -f ${_path}/etc/rc.conf cron_enable="NO"
 EOF
 )
   fi
   # ALWAYS disable sendmail and secure syslogd
   _sysrccmd=$(cat <<EOF
-  sysrc -q -f "${_path}"/etc/rc.conf sendmail_enable="NONE" syslogd_flags="-ss"
+  sysrc -q -f ${_path}/etc/rc.conf sendmail_enable="NONE" syslogd_flags="-ss"
 EOF
 )
   if [ "${_dry_run}" != "yes" ]; then

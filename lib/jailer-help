@@ -38,25 +38,26 @@ Options:
                         Sets jail's \`host.hostname\` parameter, defaults to \`hostname\`
 
   -t network_type     : Network Type
-                        - \`none\`                (vnet=inherit)
-                        - \`eb\` for epair/bridge (vnet=new)
-                        - \`ng\` for netgraph     (vnet=new) (BETA)
-                        Defaults to \`jailer default nettype\` if set, otherwise to \`none\`
+                        - \`inherit\` -> NOT SECURE FOR PRODUCTION
+                        - \`new\`
+                        - \`eb\` for epair/bridge (vnet)
+                        - \`ng\` for netgraph     (vnet) (BETA)
+                        Defaults to \`jailer network use\` if set, otherwise to \`inherit\`
 
-  -b bridge|interface : Attach to interface (if inherit or ng) or bridge (if eb)
-                        Defaults to \`lo0\` if \`none\`. \`bridge0\` if \`eb\`
+  -b bridge|interface : Attach to interface (if new or ng) or bridge (if eb)
+                        Defaults to  \`bridge0\` if \`eb\`
 
   -g gateway          : Set Jail's gateway
-                        Ignored for vnet=inherit
+                        Ignored for inherit and new
                         Defaults to bridge's IP address if vnet=new
 
   -m netmask          : Netmask
-                        Ignored for vnet=inherit
+                        Ignored for inherit or new
                         Defaults to bridge's netmask if vnet=new
 
   -a addr             : Jail's IP address. Can be IP address
-                        If vnet=inherit and not set, then Jailer will assign the first available address on \`interface\`
-                        If vnet=new, then can be \`dhcp\`
+                        If \`new\` and not set, then Jailer will assign the first available address on \`interface\`
+                        If \`vnet\`, then can be \`dhcp\`
 
   name                : Jails's name
                         If \`name\` is missing, then Jailer will assign a UUID

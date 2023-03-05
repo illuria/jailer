@@ -28,7 +28,7 @@ Usage: jailer ...
   network use [nettype]
   list
   create  [-D] [-r version | -s snap] [-n] [-d domain]
-          [-b bridge] [-t eb|ng] [-g gateway -m netmask] [-a addr] [name]
+          [-b bridge] [-t new|eb|ng] [-g gateway -m netmask] [-a addr] [name]
   destroy [-f] name
   start [name ...]
   startall
