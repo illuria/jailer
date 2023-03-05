@@ -86,12 +86,7 @@ jail::info(){
 
 
 jail::get_next_id(){
-  expr $(
-    ( grep -s '$id' /etc/jail.conf.d/* || echo '$id = "0";' ) |
-    awk -F '[="]' '{print $3}' |
-    sort -h |
-    tail -1
-  ) + 1
+  /usr/libexec/flua ${LIB}/lua/get_next_id.lua
 }
 
 jail::start(){

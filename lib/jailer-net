@@ -158,5 +158,5 @@ net::nat_del(){
 
 net::get_avail_addr(){
   _bridge="${1}"
-  _addr=$(/usr/libexec/flua ${LIB}/lua/avail_addr.lua ${_bridge})
+  _addr=$(/usr/libexec/flua ${LIB}/lua/get_avail_addr.lua ${_bridge})
 }

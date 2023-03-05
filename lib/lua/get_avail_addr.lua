@@ -2,7 +2,6 @@ handle = io.popen("ifconfig " .. arg[1])
 ifconfig = handle:read("*a")
 handle:close()
 
-
 addrs = {}
 for l in ifconfig:gmatch("[^\r\n]+") do
   if l:find("inet ") then
@@ -26,9 +25,7 @@ end
 table.sort(lastbits)
 for i = 1, #lastbits do
   if (lastbits[i]+1 ~= lastbits[i+1]) then
-    availbit = lastbits[i]+1
+    print(bits[1] .. "." .. bits[2] .. "." .. bits[3] .. "." .. lastbits[i]+1)
     break
   end
 end
-
-print(bits[1] .. "." .. bits[2] .. "." .. bits[3] .. "." .. availbit)
