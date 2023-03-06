@@ -452,7 +452,7 @@ You are more than welcome to contribute to Jailer, whether it is on code, doc, o
 
 ## History
 
-In January of 2021, @antranigv and @riks-ar had a bet If Antranig was able to rewrite @illuria's ZFS, Jail and `ifconfig(8)` wrappers from Elixir to Shell. The deal was if @antranigv failed to do that in 2 weeks, then @riks-ar gets @antranigv's desk and chair (which was the best one in the office at the time). If @antranigv succeeded, then he had the right to open-source the Shell program at any time in the future.
+In January of 2021, [@antranigv](https://github.com/antranigv) and [@riks-ar](https://github.com/riks-ar) had a bet whether Antranig is able to rewrite [@illuria](https://github.com/illuria)'s ZFS, Jail and `ifconfig(8)` wrappers from Elixir to Shell. The deal was if @antranigv failed to do that in 2 weeks, then @riks-ar gets @antranigv's desk and chair (which was the best one in the office at the time). If @antranigv succeeded, then he had the right to open-source the Shell program at any time in the future.
 
 On October 20th 2022, @illuria open-sourced Jailer by pushing the code to this repository :)
 
