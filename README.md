@@ -119,7 +119,7 @@ NAME      STATE   JID  HOSTNAME           IPv4  GW
 99d6c13c  Active  7    99d6c13c.armbsd13  -     -
 ```
 
-This means that Jail `99d6c13c` is using an ***inherited*** network stack, which is **NOT SECURE** for production use. In the next part, we will configure jails with restricted and isolated network stacks.
+This means that Jail `99d6c13c` is using an ***inherited*** network stack, which is **NOT SECURE** for production use. In the next part, we will configure Jails with restricted and isolated network stacks.
 
 ### Restricted networking on an external interface
 
@@ -205,7 +205,7 @@ fd1dafdc  Active  11   fd1dafdc.armbsd13  10.0.0.10/24   10.0.0.1
 www0      Active  9    www0.armbsd13      192.168.64.15  -
 ```
 
-To assign IPs automatically on VNET interfaces, you can setup a DHCP server. No worries! Jailer can handle that for you as well! It will install OpenBSD's `dhcpd`, setup `dhcpd.conf` and the needed `devfs.rules` for Jail.
+To assign IPs automatically on VNET interfaces, you can setup a DHCP server. No worries! Jailer can handle that for you as well! It will install OpenBSD's `dhcpd`, setup `dhcpd.conf` and the needed `devfs.rules` for Jails.
 
 ```
 root@armbsd13:~ # jailer init dhcp
@@ -219,7 +219,7 @@ Setting up dhcpd, dhcpd.conf and devfs.rules: Done!
 
 ![](https://notes.bsd.am/Jailer_images/i/Screenshot%202023-03-06%20at%2012.30.24%20PM.png)
 
-Now we can create a VNET Jail that uses DHCP.
+Now you can create a VNET Jail that uses DHCP.
 
 ```
 root@armbsd13:~ # jailer create -t eb app0
@@ -251,7 +251,7 @@ service pf start
 
 > If you get a message that says `Illegal variable name` then you're probably using `tcsh`. You can jump into `/bin/sh` by running `sh` :)
 
-> Jailer has the `nat` and `rdr` subcommands to manage NAT and Redirection, but it will be integrate in the next release.
+> Jailer has the `nat` and `rdr` subcommands to manage NAT and Redirection, but it will be integrated in the next release.
 
 Now, you can login into your VNET Jail and access the internet.
 
@@ -284,15 +284,27 @@ root@armbsd13:~ # jailer startall
 Starting jails: 99d6c13c app0 fd1dafdc www0.
 ```
 
+To destroy a Jail
+
+```
+root@armbsd13:~ # jailer destroy www0
+Destroying www0: Done!
+```
+
+> If you get an error message that says resource is busy, then it probably is. You can force destroy by doing `jailer destroy -f jailname`.
+
 ### Snapshots and Clones
 
 ZFS Snapshots are some of its best features. You can snap a Jail to 1) rollback in case something fails 2) create a new Jail base on it.
 
+Create a snapshot of `app0` named `prod`
 ```
-# Create a snapshot of `app0` named `prod`
 root@armbsd13:~ # jailer snap app0@prod
 Taking the snapshot app0@prod: Done!
-# Create Jail named `app01` from `app0@prod`
+```
+
+Create a Jail named `app01` from `app0@prod`
+```
 root@armbsd13:~ # jailer create -t eb -s app0@prod app01
 Creating app01: Done!
 ```
@@ -301,7 +313,7 @@ Creating app01: Done!
 
 ### Default Values
 
-#### Default Image/Relase
+#### Default Image/Release
 
 To specify an `image` as default, you can use the `image use` subcommand →
 
@@ -367,7 +379,7 @@ ZFS commands =>
 
   (zfs send zroot/jails/image/13.1-RELEASE@base |
    zfs recv zroot/jails/db0)
-    
+
 Resolver commands =>
   cp /etc/resolv.conf /usr/local/jails/db0/etc/resolv.conf
 Network setup commands =>
@@ -383,8 +395,11 @@ Post-Installation =>
 
 Some subcommands support JSON output.
 
-```json
+```console
 root@armbsd13:~ # jailer list -j | jq
+```
+
+```json
 [
   {
     "name": "99d6c13c",
@@ -440,152 +455,4 @@ You are more than welcome to contribute to Jailer, whether it is on code, doc, o
 In January of 2021, @antranigv and @riks-ar had a bet If Antranig was able to rewrite @illuria's ZFS, Jail and `ifconfig(8)` wrappers from Elixir to Shell. The deal was if @antranigv failed to do that in 2 weeks, then @riks-ar gets @antranigv's desk and chair (which was the best one in the office at the time). If @antranigv succeeded, then he had the right to open-source the Shell program at any time in the future.
 
 On October 20th 2022, @illuria open-sourced Jailer by pushing the code to this repository :)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----
-
-### Basic Networking
-
-It's a very multidisciplinary field and we do not set out
-any specific approach here. But to create a simple switch,
-the following could be useful (or maybe enough?)
-
-```console
-sysrc cloned_interfaces="bridge0"
-sysrc ifconfig_bridge0="inet 10.0.0.1 netmask 0xffffff00 descr jailer-bridge"
-service netif start bridge0
-```
-
-### Fetching a Base Image
-
-To fetch a base system, <ins>jailer-image(8)</ins> with
-`fetch` subcommand could be used. For instance, the
-following would download and extract `base.txz`
-of the 13.1-RELEASE from `https://download.FreeBSD.org/ftp`:
-
-```console
-> jailer image fetch 13.1-RELEASE
-```
-
-> If you want to use a mirror closer to you, you can change the `FreeBSD_mirror` environment variable, e.g. `setenv FreeBSD_mirror https://mirror.yandex.ru/freebsd`
-
-To list all fetched base images, run `jailer image list`,
-and to list possible images to fetch, `image list remote`
-(this has to be improved, though, as it currently means
-no jail named "remote" could be used.)
-
-### Creating Jails
-
-To create a new jail, use the
-<ins>jailer-create(8)</ins> command:
-
-```console
-jailer create -r 13.1-RELEASE -b bridge0 -d example.com -a 10.0.0.10 dev
-```
-
-Once created, it automatically starts the jail, and you
-can enter it with the `console` command:
-
-```console
-jailer console dev
-```
-
-You can make snapshots from your jails, and later use
-them to create another jail or roll back or whatever.
-If you do not provide a name for your snapshot, the
-current date and time is used; for example, on Oct 19,
-20:05:10, the following will create a snapshot named
-<ins>2022-10-19-20:05:10</ins>:
-
-```console
-jailer snap dev
-```
-
-Otherwise, you can do something like the following:
-
-```console
-jailer snap dev@prod
-```
-
-And later create a jail from the the snapshot:
-
-```console
-jailer create -s dev@prod -b bridge0 -d example.com -a 10.0.0.100 www
-```
-
-### Listing Jails
-
-To list all the jails:
-
-```console
-# jailer list
-NAME  STATE   JID  HOSTNAME         IPv4          GW
-dev   Active  1    dev.example.com  10.0.0.10/24  -
-www   Active  2    www.example.com  10.0.0.80/24  -
-```
-
-It can also provide a JSON output with the `-j` flag:
-
-```console
-# jailer list -j | jq
-[
-  {
-    "name": "dev",
-    "state": "Active",
-    "jid": "1",
-    "hostname": "dev.example.com",
-    "ipv4": "10.0.0.10/24",
-    "gateway": "-"
-  },
-  {
-    "name": "www",
-    "state": "Active",
-    "jid": "2",
-    "hostname": "www.example.com",
-    "ipv4": "10.0.0.100/24",
-    "gateway": "-"
-  }
-]
-```
-
-## Contributing
-
-You are more than welcome to contribute to jailer,
-whether it is on code, doc, or just to fix a typo.
-Please open an issue if you find a bug, or a PR if
-you have fixed one. All code changes must be
-reviewed and tested.
 
