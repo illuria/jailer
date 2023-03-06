@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CMD_VALID_LIST="create,console,deinit,destroy,edit,help,image,info,init,list,nat,rdr,snap,snapshot,start,startall,stop,stopall,usage,version"
+CMD_VALID_LIST="create,console,deinit,destroy,edit,help,image,info,init,list,network,nat,rdr,snap,snapshot,start,startall,stop,stopall,usage,version"
 
 cmd::parse_init(){
     local _cmd
@@ -30,13 +30,14 @@ cmd::parse(){
         image)            jail::image      "$@"  ;;
         info)             jail::info       "$@"  ;;
         list)             jail::list       "$@"  ;;
+        network)          jail::network    "$@"  ;;
         nat)              net::nat_parse   "$@"  ;;
         rdr)              net::rdr_parse   "$@"  ;;
         snap|snapshot)    zfs::snapshot    "$@"  ;;
         start)            jail::start      "$@"  ;;
-        startall)         util::tbd              ;;
+        startall)         service jail start     ;;
         stop)             jail::stop       "$@"  ;;
-        stopall)          util::tbd              ;;
+        stopall)          service jail stop      ;;
         *)                util::err "Unknown command '${_user_cmd}'. Please run 'jailer usage' for help" ;;
     esac
 }
@@ -48,7 +49,7 @@ cmd::find(){
     local _opt _choice _found=""
     local IFS=","
 
-    [ -n "${_user_cmd}" ] || util::err "no command specified"
+    [ -n "${_user_cmd}" ] || util::usage
 
     for _opt in ${_valid}; do
         # exact match?

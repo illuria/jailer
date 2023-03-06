@@ -1,44 +1,46 @@
 #!/bin/sh
 
-init::init(){
-  local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
+init::thankyou(){
+  printf "\n"
+  printf "Please report any problems at https://github.com/illuria/jailer/issues\n"
+  printf "The latest information about Jailer is available at https://jailer.dev/\n"
+  printf "Consider joining Jailer's worldwide community:\n"
+  printf " https://github.com/illuria/jailer\n"
+  printf "\n"
+  printf "Thank you for choosing Jailer!\n"
+}
 
-  shift
-  while getopts d:m:nz: _opt; do
-    case ${_opt} in
-      d)  _dataset="${OPTARG}" && opt_d=true ;;
-      m)  _mpoint="${OPTARG}"                ;;
-      n)  _nodef=true                        ;;
-      z)  _zpool="${OPTARG}"   && opt_z=true ;;
-    esac
-  done
-  shift $((OPTIND - 1))
+init::suggest(){
+  printf "\n"
+  printf "${COLOUR_SET_Y}You may run \`${progname} init info\` to check system status\n"
+  printf "You may run \`${progname} init bridge\` to setup advanced networking${COLOUR_END}\n"
+}
 
-  # XXX: It needs to be improved!
-  # Check if jailer is already initialised
-  ${_initialised:=false} # Assume it is not
-  _rcval=$(sysrc -nq jailer_dir)
-  [ ${#_rcval} -ne 0 ] && _initialised=true
+init::zfs::info(){
+  printf "${COLOUR_SET_B}Jailer will create\n"
+  printf "${COLOUR_SET_M} dataset     :${COLOUR_SET_C} $_dataset\n"
+  printf "${COLOUR_SET_M} mount point :${COLOUR_SET_C} ${_mpoint:-unknown}${COLOUR_END}\n"
+}
 
-  # XXX: To be removed soon!
-  # Regardless of the following sanity checks etc. check if the patch
-  # for jail.conf.d is already applied
-  grep "_jconfdir" /etc/rc.d/jail >/dev/null 2>&1
-  if [ $? -ne 0 ]; then
-    printf "Patching jail service for jail.conf.d support: "
-    patch -u /etc/rc.d/jail -i ${LIB}/init/jail_confdir.patch
-    if [ $? -eq 0 ]; then
-      printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
-    else
-      printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
-      util::warn "Could not patch rc.d/jail, you need to take care of it manually"
-    fi
+init::zfs::execute(){
+  printf "${COLOUR_SET_B}Creating ZFS dataset "
+  printf "${COLOUR_SET_C}$_dataset ${COLOUR_SET_B}"
+  printf "with the mount point ${COLOUR_SET_C}${_mpoint:-unknown}${COLOUR_END}: "
+
+  if ! eval "${_zcmd}" > /dev/null 2>&1 ; then
+    printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+    util::err "Run this command to figure out why ZFS failed:\n $_zcmd"
+  else
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+    # Initialise the world (main section, if reached)
+    printf "${COLOUR_SET_B}Setting jailer_dir in rc.conf${COLOUR_END}: "
+    sysrc jailer_dir="zfs:$_dataset" > /dev/null 2>&1
+    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+      || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
   fi
-  # If jailer is initialised beforehand, inform the user and exit
-  if $_initialised; then
-    util::err "Jailer seems to be already initialised (manually, perhaps?)"
-  fi
+}
 
+init::zfs::parse(){
   # Infer pool name
   _zpool_no="$(zpool list -H -o name | wc -l)"
   if [ "$_zpool_no" -eq 0 ]; then
@@ -67,26 +69,255 @@ init::init(){
     util::err "Only one of -z or -d can be provided"
   fi
 
-  # Enable the jail service first
-  printf "Enable the jail service first: "
-  service jail enable > /dev/null 2>&1
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
-
-  # Initialise the world (main section, if reached)
-  printf "Setting jailer_dir in rc.conf: "
-  sysrc jailer_dir="zfs:$_dataset" > /dev/null 2>&1
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
-
   if [ $_mpoint ]; then
     _zcmd="zfs create -o mountpoint=$_mpoint $_dataset"
   else
     _zcmd="zfs create $_dataset"
   fi
-  printf "Creating ZFS dataset $_dataset with the mount point ${_mpoint:-unknown}: "
-  $_zcmd > /dev/null 2>&1
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"     \
-               || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" &&
-                   util::warn "Run this command to figure out why ZFS failed: $_zcmd")
+}
+
+init::zfs(){
+  ${_yes:=false}
+  if ! ${_yes}; then
+    init::zfs::info
+    read -p "OK? (y/N) " _yes
+    if [ "${_yes}" = "y" -o "${_yes}" = "yes" ]; then
+      init::zfs::execute
+    else
+      exit 0
+    fi
+  else
+    init::zfs::execute
+  fi
+}
+
+init::info(){
+  printf "${COLOUR_SET_B}Checking system state...${COLOUR_END}\n"
+  printf "${COLOUR_SET_M} jail_enable in rc.conf  ==> ${COLOUR_END}"
+  if checkyesno "jail_enable" ; then
+    printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+    printf "${COLOUR_SET_M} patched rc.d/jail file  ==> ${COLOUR_END}"
+    if grep -q "jail_conf_dir" /etc/rc.d/jail ; then
+      printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+    else
+      printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+    fi
+    printf "${COLOUR_SET_B}Checking jailer state...${COLOUR_END}\n"
+    printf "${COLOUR_SET_M} jailer_dir in rc.conf   ==> ${COLOUR_END}"
+    if [ ! -z $_rcval ]; then
+      zfs::init
+      printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} jailer_dir is define to ==> ${COLOUR_END}"
+      printf "${COLOUR_SET_C}${_rcval}${COLOUR_END}\n"
+
+      printf "${COLOUR_SET_M} Jailer ZFS dataset      ==> ${COLOUR_END}"
+      printf "${COLOUR_SET_C}${JAILER_ZFS_DATASET}${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} Jailer ZFS mountpoint   ==> ${COLOUR_END}"
+      printf "${COLOUR_SET_C}${jailer_dir}${COLOUR_END}\n"
+    else
+      printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+    fi
+    printf "${COLOUR_SET_B}Checking network status...${COLOUR_END}\n"
+    printf "${COLOUR_SET_M} bridge0 in rc.conf      ==> ${COLOUR_END}"
+    if (sysrc -n cloned_interfaces | tr ' ' '\n' | grep -q '^bridge0$') ; then
+      printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+      printf "${COLOUR_SET_M} bridge0 is interfaces   ==> ${COLOUR_END}"
+      if ifconfig bridge0 1>/dev/null 2>&1 ; then
+        printf "${COLOUR_SET_C}YES!${COLOUR_END}\n"
+        printf "${COLOUR_SET_M} bridge0 uses IP address ==> ${COLOUR_END}"
+        _bridge0ip=$(ifconfig bridge0 | awk '/inet / {print $2; exit}')
+        if [ ! -z "${_bridge0ip}" ]; then
+          printf "${COLOUR_SET_C}${_bridge0ip}${COLOUR_END}\n"
+        else
+          printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+        fi
+      else
+        printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+        printf "${COLOUR_SET_Y}  Run \`service netif start bridge0\` to start the bridge${COLOUR_END}\n"
+      fi
+    else
+      printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+      printf "${COLOUR_SET_Y}  If you want Jailer to auto-configure bridge interfaces, run \`jailer init bridge\`${COLOUR_END}\n"
+    fi
+  else
+    printf "${COLOUR_SET_R}NO :(${COLOUR_END}\n"
+  fi
+}
+
+init::patch(){
+  # Apply illuria's patches
+  grep "jail_conf_dir" /etc/rc.d/jail >/dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    printf "${COLOUR_SET_B}Patching jail service for jail.conf.d support${COLOUR_END}: "
+    cp /etc/rc.d/jail /etc/rc.d/jail.origin && cp ${LIB}/init/jail /etc/rc.d/jail
+    if [ $? -eq 0 ]; then
+      printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+    else
+      printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+      util::warn "Could not patch rc.d/jail, you need to take care of it manually"
+    fi
+  fi
+}
+
+init::bridge::info(){
+  printf "${COLOUR_SET_B}Jailer will configure\n"
+  printf "${COLOUR_SET_M} network interface :${COLOUR_SET_C} bridge0\n"
+  printf "${COLOUR_SET_M} network address   :${COLOUR_SET_C} 10.0.0.1/24${COLOUR_END}\n"
+}
+
+init::bridge::execute(){
+  _bridge='bridge0'
+  _addr="10.0.0.1/24"
+  _bcmd=$(cat <<EOF
+  sysrc cloned_interfaces+="${_bridge}"
+  sysrc ifconfig_${_bridge}="inet ${_addr} up"
+  service netif start bridge0
+EOF
+)
+  printf "${COLOUR_SET_B}Configuring interface ${COLOUR_SET_C}${_bridge} "
+  printf "${COLOUR_SET_B}with IP address ${COLOUR_SET_C}${_addr}${COLOUR_END}: "
+  if eval "${_bcmd}" > /dev/null 2>&1 ; then
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+    printf "${COLOUR_SET_Y}\nYou may run \`${progname} init dhcp\` to setup DHCP server for ${_bridge}${COLOUR_END}\n"
+  else
+    printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+    util::err "Run this command to figure out why network config failed:\n $_bcmd"
+  fi
+}
+
+init::bridge(){
+  ${_yes:=false}
+  if ! ${_yes}; then
+    init::bridge::info
+    read -p "OK? (y/N) " _yes
+    if [ "${_yes}" = "y" -o "${_yes}" = "yes" ]; then
+      init::bridge::execute
+    else
+      exit 0
+    fi
+  else
+    init::bridge::execute
+  fi
+}
+
+init::dhcp::info(){
+  printf "${COLOUR_SET_B}Jailer will\n"
+  printf "${COLOUR_SET_M} - Install OpenBSD's ${COLOUR_SET_C}dhcpd${COLOUR_SET_M} from packages.\n"
+  printf "${COLOUR_SET_M} - Setup ${COLOUR_SET_C}dhcpd.conf${COLOUR_SET_M}.\n"
+  printf "${COLOUR_SET_M} - Create ${COLOUR_SET_C}/etc/devfs.rules${COLOUR_SET_M} for VNET Jails.\n"
+  printf "${COLOUR_END}"
+}
+
+init::dhcp::execute(){
+  _confpath="/usr/local/etc/dhcpd.conf"
+  _conf=$(cat <<EOF
+subnet 10.0.0.0 netmask 255.255.255.0 {
+  range 10.0.0.2 10.0.0.254;
+  option subnet-mask 255.255.255.0;
+  option routers 10.0.0.1;
+}
+EOF
+)
+
+  _devfsrules=$(cat <<EOF
+[vnet=10]
+add path 'bpf*' unhide
+EOF
+)
+
+  _dhcpcmd=$(cat <<EOF
+#Installing dhcpd
+pkg install -y dhcpd
+
+# Generating Configuration
+printf "\n${_conf}\n" > ${_confpath}
+
+#Test configuration and enable/start dhcpd service
+dhcpd -n -f ${_confpath} && service dhcpd enable && service dhcpd start
+
+# Add devfs rule for VNET Jails
+printf "\n${_devfsrules}\n" >> /etc/devfs.rules
+EOF
+)
+
+  printf "${COLOUR_SET_B}Setting up ${COLOUR_SET_C}dhcpd${COLOUR_SET_B}, "
+  printf "${COLOUR_SET_C}dhcpd.conf ${COLOUR_SET_B}and "
+  printf "${COLOUR_SET_C}devfs.rules${COLOUR_END}: "
+  if eval "${_dhcpcmd}" >/dev/null 2>&1 ; then
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+  else
+    printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+    util::err "Run this command to figure out why ZFS failed:\n $_dhcpcmd \n"
+  fi
+}
+
+init::dhcp(){
+  ${_yes:=false}
+  if ! ${_yes}; then
+    init::dhcp::info
+    read -p "OK? (y/N) " _yes
+    if [ "${_yes}" = "y" -o "${_yes}" = "yes" ]; then
+      init::dhcp::execute
+    else
+      exit 0
+    fi
+  else
+    init::dhcp::execute
+  fi
+}
+
+init::init(){
+  local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
+  local _yes
+
+  # XXX: It needs to be improved!
+  # Check if jailer is already initialised
+  ${_initialised:=false} # Assume it is not
+  _rcval=$(sysrc -nq jailer_dir)
+  [ ${#_rcval} -ne 0 ] && _initialised=true
+
+  shift
+  while getopts d:m:nyz: _opt; do
+    case ${_opt} in
+      d)  _dataset="${OPTARG}" && opt_d=true ;;
+      m)  _mpoint="${OPTARG}"                ;;
+      n)  _nodef=true                        ;;
+      y)  _yes=true                          ;;
+      z)  _zpool="${OPTARG}"   && opt_z=true ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _subcommand="${1}"
+
+  init::zfs::parse
+  [ "${_subcommand}" = "zfs"    ] && init::zfs       && exit
+  [ "${_subcommand}" = "help"   ] && help::init      && exit
+  [ "${_subcommand}" = "info"   ] && init::info      && exit
+  [ "${_subcommand}" = "dhcp"   ] && init::dhcp      && exit
+  [ "${_subcommand}" = "patch"  ] && init::patch     && exit
+  [ "${_subcommand}" = "bridge" ] && init::bridge    && exit
+
+
+  # If jailer is initialised beforehand, inform the user and exit
+  if $_initialised; then
+    util::warn "Jailer seems to be already initialised (manually, perhaps?)"
+    init::info
+    exit 1
+  fi
+
+  init::zfs
+
+  # Enable the jail service first
+  printf "${COLOUR_SET_B}Enabling the jail service${COLOUR_END}: "
+  service jail enable > /dev/null 2>&1
+  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+               || printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+
+  init::patch
+
+  init::suggest
+
+  init::thankyou
+  exit 0
 }

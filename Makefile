@@ -9,7 +9,9 @@ install:
 	# Install the main executable and library files
 	@$(INSTALL) -m 544 -C $(PROG) $(BINDIR)/
 	@$(MKDIR) -p $(LIBDIR)/init
+	@$(MKDIR) -p $(LIBDIR)/lua
 	@$(INSTALL) -C lib/init/* $(LIBDIR)/init/
+	@$(INSTALL) -C lib/lua/* $(LIBDIR)/lua/
 	@$(INSTALL) -C lib/jail*  $(LIBDIR)/
 	# Compress and install man pages
 	@mkdir -p ${MANDIR}

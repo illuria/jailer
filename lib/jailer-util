@@ -1,8 +1,12 @@
 #!/bin/sh
 
 util::err() {
-  echo "${progname}: ERROR: $1" >&2
+  printf "\n${progname}: ${COLOUR_SET_R}ERROR: $1 ${COLOUR_END}\n" >&2
   exit 1
+}
+
+util::warn() {
+  printf "\n${COLOUR_SET_Y}WARN:${COLOUR_END} $1\n" >&2
 }
 
 util::tbd() {
@@ -13,26 +17,32 @@ util::tbd() {
 util::usage() {
     cat << EOT
 Usage: jailer ...
-    version
-    init
-    help subcommand
-    image fetch [version]
-    image list [version]
-    image list remote
-    image use [version]
-    create [-r version | -s snap] [-n] [-t eb|ng] [-b bridge|interface] [-d domain] [-g gateway -m netmask] [-a addr] [name]
-    destroy name
-    list
-    start [name ...]
-    stop [-f] [name ...]
-    console name
-    snap jail[@name]
-    nat list [jail]
-    nat add -i interface [ -a my.second.ip.addr ] jail
-    nat del jail
-    rdr list [jail]
-    rdr add -i interface [ -a my.second.ip.addr ] [ -p tcp|udp -r recvport [ -d destport ] ] jail
-    rdr del -j jail [ -i rule_index | -f ] ; -f deletes all rules for jail
+  version
+  help [subcommand]
+  [subcommand] help
+  init [info|patch|zfs|bridge|dhcp]
+  image fetch [version]
+  image list
+  image list remote
+  image use [version]
+  network use [nettype]
+  list
+  create  [-D] [-r version | -s snap] [-n] [-d domain]
+          [-b bridge] [-t new|eb|ng] [-g gateway -m netmask] [-a addr] [name]
+  destroy [-f] name
+  start [name ...]
+  startall
+  stop [-f] [name ...]
+  stopall
+  console name
+  snap jail[@name]
+  nat list [jail]
+  nat add -i interface [ -a my.second.ip.addr ] jail
+  nat del jail
+  rdr list [jail]
+  rdr add -i interface [ -a my.second.ip.addr ]
+                       [ -p tcp|udp -r recvport [ -d destport ] ] jail
+  rdr del -j jail [ -i rule_index | -f ]
 EOT
     exit 1
 }
@@ -41,6 +51,4 @@ util::version(){
   printf "v%s\nr%s\n" ${VERSION} ${VERSION_INT}
 }
 
-util::warn() {
-  echo "WARN: $1" >&2
-}
+

@@ -3,7 +3,11 @@
 help::parse_help(){
   case "${1}" in
     create)   help::create  ;;
+    console)  help::console ;;
+    destroy)  help::destroy ;;
     edit)     help::edit    ;;
+    init)     help::init    ;;
+    network)  help::network ;;
     nat)      help::nat     ;;
     rdr)      help::rdr     ;;
     *)        util::usage   ;;
@@ -11,52 +15,118 @@ help::parse_help(){
 }
 
 help::create(){
-  cat << EOT
-Usage:  jailer create  [-r version | -s snap] [-t eb|ng] [-b bridge] [-n] [-d domain] [-g gateway -m netmask] [-a addr] [name]
+  cat <<EOF
+Usage:  jailer create  [-D] [-r version | -s snap] [-n] [-d domain]
+                       [-b bridge] [-t eb|ng] [-g gateway -m netmask] [-a addr] [name]
 Options:
-  -r version          : FreeBSD-version as base of Jail; defaults to uname -r
+  -D                  : Dry run
+                        Prints the jail.conf file, ZFS commands and post-installation
+                        commands that Jailer would run
+
+  -r version          : FreeBSD-version as base of Jail
+                        version can be XX.X-RELEASE, defaults to \`jailer image use\`
+                        if set, otherwise to \`uname -r\`
+
   -s snapshot         : Clone from snapshot as base of Jail
+                        \`snapshot\` can be jail@snapname or images/XX.X-RELEASE@snapname
+                        if you want to clone a release
+
   -n                  : Make Jail less noisy
+                        Disables cron hence making the system less noisy
+
   -d domain           : Set Jail's domain
-  -t network_type     : Network Type; defaults to none, can be eb (epair/bridge) or ng (netgraph)
-  -b bridge|interface : Attach to bridge
+                        Sets jail's \`host.hostname\` parameter, defaults to \`hostname\`
+
+  -t network_type     : Network Type
+                        - \`inherit\` -> NOT SECURE FOR PRODUCTION
+                        - \`new\`
+                        - \`eb\` for epair/bridge (vnet)
+                        - \`ng\` for netgraph     (vnet) (BETA)
+                        Defaults to \`jailer network use\` if set, otherwise to \`inherit\`
+
+  -b bridge|interface : Attach to interface (if new or ng) or bridge (if eb)
+                        Defaults to  \`bridge0\` if \`eb\`
+
   -g gateway          : Set Jail's gateway
-  -m netmask          : Netmask (if specifying a Gateway)
-  -a addr             : Use addr as address or dhcp to use dhclient in Jail
-EOT
+                        Ignored for inherit and new
+                        Defaults to bridge's IP address if vnet=new
+
+  -m netmask          : Netmask
+                        Ignored for inherit or new
+                        Defaults to bridge's netmask if vnet=new
+
+  -a addr             : Jail's IP address. Can be IP address
+                        If \`new\` and not set, then Jailer will assign the first available address on \`interface\`
+                        If \`vnet\`, then can be \`dhcp\`
+
+  name                : Jails's name
+                        If \`name\` is missing, then Jailer will assign a UUID
+EOF
+  exit 0
+}
+
+help::console(){
+  cat <<EOF
+Usage: jailer console jail
+  Open \$SHELL inside jail
+EOF
+  exit 0
+}
+
+help::destroy(){
+  cat <<EOF
+Usage: jailer destroy [-f] jail
+  Destroys jail; Might fail is a resource is busy
+  Use -f to force destroy
+EOF
   exit 0
 }
 
 help::edit(){
-  cat << EOT
+  cat <<EOF
 Usage: jailer edit jail
-EOT
+  Respects \$EDITOR
+EOF
+  exit 0
+}
+
+help::init(){
+  cat <<EOF
+Usage: jailer init ...
+  info    : Show system and Jailer setup info
+  patch   : Apply Jailer's rc.d/jail patch
+  zfs     : Create ZFS datasets
+  bridge  : auto-configure bridge0
+  dhcp    : Install and setup OpenBSD's DHCP server
+EOF
+  exit 0
+}
+
+help::network(){
+  cat <<EOF
+Usage jailer network ...
+  use     : Set default network type, can be \`none\`, \`eb\`, \`ng\`
+EOF
   exit 0
 }
 
 help::nat(){
-  cat << EOT
+  cat <<EOF
 Usage jailer nat ...
   list [jail]
   add -i interface [ -a my.second.ip.addr ] jail
   del jail
-EOT
+EOF
   exit 0
 }
 
 help::rdr(){
-  cat << EOT
+  cat <<EOF
 Usage: jailer rdr ...
   list [jail]
-  add -i interface [ -a my.second.ip.addr ] [ -p tcp|udp -r recvport [ -d destport ] ] jail
-  del -j jail [ -i rule_index | -f ] ; -f deletes all rules for jail
-EOT
-  exit 0
-}
-
-help::edit(){
-  cat << EOT
-Usage: jailer edit name
-EOT
+  add  -i interface [ -a my.second.ip.addr ]
+                    [ -p tcp|udp -r recvport [ -d destport ] ] jail
+  del  [ -i rule_index | -f ] jail
+EOF
   exit 0
 }

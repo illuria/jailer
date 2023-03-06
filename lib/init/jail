@@ -1,12 +1,12 @@
 #!/bin/sh
 #
-# $FreeBSD: releng/12.2/libexec/rc/rc.d/jail 354725 2019-11-15 07:01:04Z avg $
+# $FreeBSD$
 #
 
 # PROVIDE: jail
 # REQUIRE: LOGIN FILESYSTEMS
 # BEFORE: securelevel
-# KEYWORD: nojail shutdown
+# KEYWORD: shutdown
 
 . /etc/rc.subr
 
@@ -25,6 +25,14 @@ extra_commands="config console status"
 : ${jail_consolecmd:=/usr/bin/login -f root}
 : ${jail_jexec:=/usr/sbin/jexec}
 : ${jail_jls:=/usr/sbin/jls}
+: ${jail_conf_dir:=/etc/jail.conf.d}
+
+if ! type startmsg > /dev/null 2>&1 ; then
+  startmsg() {
+    echo "$@"
+  }
+fi
+
 
 need_dad_wait=
 
@@ -450,26 +458,28 @@ jail_start()
 	if [ $# = 0 ]; then
 		return
 	fi
-	echo -n 'Starting jails:'
+	startmsg -n 'Starting jails:'
 	case $1 in
 	_ALL)
 		command=$jail_program
 		rc_flags=$jail_flags
-		command_args="-f $jail_conf -c"
+		command_args='-f - -c'
 		if ! checkyesno jail_parallel_start; then
 			command_args="$command_args -p1"
 		fi
 		_tmp=`mktemp -t jail` || exit 3
-		if $command $rc_flags $command_args >> $_tmp 2>&1; then
+		if cat $jail_conf $jail_conf_dir/*.conf \
+		/etc/jail.*.conf 2>/dev/null | \
+		$command $rc_flags $command_args >> $_tmp 2>&1; then
 			$jail_jls jid name | while read _id _name; do
-				echo -n " $_name"
+				startmsg -n " $_name"
 				echo $_id > /var/run/jail_${_name}.id
 			done
 		else
 			cat $_tmp
 		fi
 		rm -f $_tmp
-		echo '.'
+		startmsg '.'
 		return
 	;;
 	esac
@@ -485,16 +495,18 @@ jail_start()
 
 			eval rc_flags=\${jail_${_jv}_flags:-$jail_flags}
 			eval command=\${jail_${_jv}_program:-$jail_program}
-			command_args="-i -f $_conf -c $_j"
+			command_args="-i -f - -c $_j"
 			(
 				_tmp=`mktemp -t jail_${_j}` || exit 3
-				if $command $rc_flags $command_args \
+				if cat $jail_conf $_conf $jail_conf_dir/*.conf \
+				/etc/jail.*.conf 2>/dev/null | \
+				$command $rc_flags $command_args \
 				    >> $_tmp 2>&1 </dev/null; then
-					echo -n " ${_hostname:-${_j}}"
+					startmsg -n " ${_hostname:-${_j}}"
 					_jid=$($jail_jls -j $_j jid)
 					echo $_jid > /var/run/jail_${_j}.id
 				else
-					echo " cannot start jail " \
+					startmsg " cannot start jail " \
 					    "\"${_hostname:-${_j}}\": "
 					cat $_tmp
 				fi
@@ -513,22 +525,24 @@ jail_start()
 
 			eval rc_flags=\${jail_${_jv}_flags:-$jail_flags}
 			eval command=\${jail_${_jv}_program:-$jail_program}
-			command_args="-i -f $_conf -c $_j"
+			command_args="-i -f - -c"
 			_tmp=`mktemp -t jail` || exit 3
-			if $command $rc_flags $command_args \
+			if (cat $_conf $jail_conf $jail_conf_dir/*.conf \
+			/etc/jail.*.conf 2>/dev/null | \
+			$command $rc_flags $command_args $_j) \
 			    >> $_tmp 2>&1 </dev/null; then
-				echo -n " ${_hostname:-${_j}}"
+				startmsg -n " ${_hostname:-${_j}}"
 				_jid=$($jail_jls -j $_j jid)
 				echo $_jid > /var/run/jail_${_j}.id
 			else
-				echo " cannot start jail " \
+				startmsg " cannot start jail " \
 				    "\"${_hostname:-${_j}}\": "
 				cat $_tmp
 			fi
 			rm -f $_tmp
 		done
 	fi
-	echo '.'
+	startmsg '.'
 }
 
 jail_stop()
@@ -543,7 +557,7 @@ jail_stop()
 	_ALL)
 		command=$jail_program
 		rc_flags=$jail_flags
-		command_args="-f $jail_conf -r"
+		command_args='-f - -r'
 		if checkyesno jail_reverse_stop; then
 			$jail_jls name | tail -r
 		else
@@ -551,6 +565,8 @@ jail_stop()
 		fi | while read _j; do
 			echo -n " $_j"
 			_tmp=`mktemp -t jail` || exit 3
+			cat $jail_conf $jail_conf_dir/*.conf \
+			/etc/jail.*.conf 2>/dev/null | \
 			$command $rc_flags $command_args $_j >> $_tmp 2>&1
 			if $jail_jls -j $_j > /dev/null 2>&1; then
 				cat $_tmp
@@ -574,7 +590,9 @@ jail_stop()
 		eval command=\${jail_${_jv}_program:-$jail_program}
 		echo -n " ${_hostname:-${_j}}"
 		_tmp=`mktemp -t jail` || exit 3
-		$command -q -f $_conf -r $_j >> $_tmp 2>&1
+		cat $_conf $jail_conf $jail_conf_dir/*.conf \
+		/etc/jail.*.conf 2>/dev/null | \
+		$command -q -f - -r $_j >> $_tmp 2>&1
 		if $jail_jls -j $_j > /dev/null 2>&1; then
 			cat $_tmp
 		else

@@ -15,7 +15,11 @@ jail::list(){
   _jformstp='{:name}^{:state}\n'
   {
     [ ! -z ${_json} ]  && printf '[' || xo "${_jformact}" "NAME" "STATE" "JID" "HOSTNAME" "IPv4" "GW"
-      for _j in $(sysrc -n jail_list);
+    _jail_list=$(sysrc -n jail_list)
+    _jail_conf_dir=$(for _j in $(find /etc/jail.conf.d -name '*.conf'); do basename ${_j} | sed 's/\.conf$/ /'; done)
+    _jls=$(jls name)
+    _all_jails=$( printf "%s\n" ${_jail_list} ${_jail_conf_dir} ${_jls} | sort -u)
+    for _j in ${_all_jails};
       do
         if jls -j ${_j} jid > /dev/null 2>&1 ; then
           _hostname=$(jexec ${_j} hostname)
@@ -57,12 +61,12 @@ jail::info(){
   _jformact='Name: {:name}\nState: {:state}\nJID: {:jid}\nHostname: {:hostname}\nIPv4: {:ipv4}\nNetmask: {:netmask}\nGateway: {:gateway}\n'
   _jformstp='Name: {:name}\nState: {:state}\n'
 
-  if sysrc -n jail_list | tr ' ' '\n' | grep "^${_jname}$" > /dev/null 2>&1 ; then
+  if service jail config ${_jname} >/dev/null 2>&1 ; then
     if jls -j ${_jname} > /dev/null 2>&1 ; then
       _hostname=$(jexec ${_jname} hostname)
       _jid=$(jls -j ${_jname} jid)
       _ipaddr=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/inet / {print $2}')
-      _gateway=$(jexec ${_jname} route -n get default 2>/dev/null | awk '/gateway/ {print $2}')
+      _gateway=$(jexec ${_jname} route -n get default 2>/dev/null | awk '/gateway/ {print $2; exit;}')
       _netmask=$(jexec ${_jname} ifconfig -f inet:dotted $(jexec ${_jname} ifconfig -g epair | head -1) | awk '/netmask/ {print $4}')
       _state="Active"
       _format="${_jformact}"
@@ -80,22 +84,16 @@ jail::info(){
   [ ! -z ${_json} ] && _style="json" && printf "}"
 }
 
-
 jail::get_next_id(){
-  expr $(
-    ( grep -s '$id' /etc/jail.conf.d/* || echo '$id = "0";' ) |
-    awk -F '[="]' '{print $3}' |
-    sort -h |
-    tail -1
-  ) + 1
+  /usr/libexec/flua ${LIB}/lua/get_next_id.lua
 }
 
 jail::start(){
   for _name in $@; do
     printf "Starting ${_name}: "
-    jail -f /etc/jail.conf.d/${_name}.conf -c ${_name} > /dev/null 2>&1
-    [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
+    service jail start ${_name} > /dev/null 2>&1
+    jls -j ${_name} >/dev/null 2>&1 && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
+                 || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n") && return 1
   done
 }
 
@@ -103,17 +101,31 @@ jail::stop(){
   for _name in $@; do
     printf "Stopping ${_name}: "
     if (jls -j ${_name} > /dev/null 2>&1); then
-      jail -f /etc/jail.conf.d/${_name}.conf -r ${_name} > /dev/null 2>&1
-      [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-                   || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n")
+      if service jail stop ${_name} > /dev/null 2>&1 ; then
+        > /dev/null 2>&1 \
+        umount ${jailer_dir}/${_name}/dev
+        printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
+      else
+        printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n"
+      fi
     else
-      printf "${COLOUR_SET_R}Failed! (is not an active jail)${COLOUR_END}\n"
+      printf "${COLOUR_SET_R}${_name} is not an active jail${COLOUR_END}\n"
     fi
   done
 }
 
 jail::destroy(){
-  local _name="$1"
+  local _name _opt
+
+  while getopts f _opt; do
+    case ${_opt} in
+      f) _force="-f" ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+
+  _name="${1:-help}"
+  [ ${_name} = "help" ] && help::destroy
 
   printf "Destroying ${_name}: "
 
@@ -124,18 +136,18 @@ jail::destroy(){
   if ! zfs list ${JAILER_ZFS_DATASET}/${_name} > /dev/null 2>&1; then
     printf "${COLOUR_SET_R}Failed! (does not exist)${COLOUR_END}\n"
   else
-    jail::_destroyzfs ${_name}
+    jail::_destroyzfs ${_name} ${_force}
 
     rm /etc/jail.conf.d/${_name}.conf > /dev/null 2>&1
-    sysrc jail_list-="${_name}"       > /dev/null 2>&1
     printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
   fi
 }
 
 jail::_destroyzfs(){
   local _name="$1"
-  sleep 2
-  zfs destroy -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
+  local _force="$2"
+  sleep 1
+  zfs destroy ${_force} -r ${JAILER_ZFS_DATASET}/${_name} || util::err "ZFS Destroy error, please check dataset dependency"
 }
 
 jail::image::extract(){
@@ -168,7 +180,7 @@ jail::image::_checksum(){
 
 jail::image(){
   if [ $# -eq 0 ]; then
-    _errormsg=$(cat << EOF
+    _errormsg=$(cat <<EOF
 Insufficient number of arguments: Needs one of the following subcommands:
 
     1. jailer image fetch [version] -> fetch either the specified
@@ -279,8 +291,36 @@ jail::image::use(){
     jailer image list $1 >/dev/null && echo $1 > $_use_file ||
       util::err "No such an image"
   else
-    util::err "Image use command takes at most one argument"
+    util::err "\`image use\` subcommand takes at most one argument"
   fi
+}
+
+jail::network::use(){
+  _nettype_file="${jailer_dir}/.default_nettype"
+
+  shift
+  if [ $# -eq 0 ]; then
+    [ -f $_nettype_file ] && cat $_nettype_file ||
+      echo "No default network type" >&2
+  elif [ $# -eq 1 ]; then
+    if [ $1 = "eb" -o $1 = "ng" -o $1 = "new" -o $1 = "inherit" ]; then
+      echo $1 > $_nettype_file
+    else
+      util::err "\`$1\` not a valid network type."
+    fi
+  else
+    util::err "\`network use\` subcommand takes at most one argument"
+  fi
+}
+
+jail::network(){
+  if [ $# -eq 0 ]; then
+    help::network
+  fi
+  case $1 in
+    use) jail::network::use "$@"      ;;
+    *)   util::err "Unknown argument" ;;
+  esac
 }
 
 set_eb_vars(){
@@ -292,20 +332,34 @@ set_eb_vars(){
   exec.prestart  += "ifconfig epair\${id}a up descr vnet-\${name}";
   exec.prestart  += "ifconfig \${bridge} addm epair\${id}a up";
 
+  exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
+  exec.start     += "/bin/sh /etc/rc";
+
+  exec.stop       = "/bin/sh /etc/rc.shutdown jail";
   exec.poststop   = "ifconfig \${bridge} deletem epair\${id}a";
   exec.poststop  += "ifconfig epair\${id}a destroy";
 
-  exec.start      = "/sbin/ifconfig lo0 127.0.0.1 up";
 EOF
 )
 }
 
-set_os_vars(){
-  [ -z "${_addr}" ]   && util::err "non-VNET networking requires IP address"
-  [ -z "${_bridge}" ] && _bridge="lo0"
+set_new_vars(){
+  [ -z "${_bridge}" ] && util::err "When using -t new, an interface should be assigned with -b"
+  [ -z "${_addr}" ]   && net::get_avail_addr "${_bridge}"
   _netvars=$(cat <<EOF
   interface       = \${bridge};
   ip4.addr        = ${_addr};
+  exec.start      = "/bin/sh /etc/rc";
+  exec.stop       = "/bin/sh /etc/rc.shutdown jail";
+EOF
+)
+}
+
+set_inherit_vars(){
+  _netvars=$(cat <<EOF
+  ip4             = "inherit";
+  exec.start      = "/bin/sh /etc/rc";
+  exec.stop       = "/bin/sh /etc/rc.shutdown jail";
 EOF
 )
 }
@@ -315,9 +369,9 @@ jail::create(){
   local _version _snap
   local _vnet _addr _gw _netmask _resolver
   local _bridge _domain=${HOSTNAME}
-  local _silent
+  local _silent _dry_run _output
 
-  while getopts :a:b:c:d:e:f:g:m:nr:s:t: _opt; do
+  while getopts :a:b:c:d:e:f:g:m:nr:s:t:D _opt; do
     case ${_opt} in
       a) _addr="${OPTARG}" ;;
       b) _bridge="${OPTARG}" ;;
@@ -329,17 +383,23 @@ jail::create(){
       r) _version="${OPTARG}" ;;
       s) _snap="${OPTARG}" ;;
       t) _vnet="${OPTARG}" ;;
+      D) _dry_run="yes";;
       *) util::usage ;;
     esac
   done
   shift $((OPTIND - 1))
 
-  _name="${1:-$(uuidgen)}"
+  _name="${1:-$(uuidgen | cut -d '-' -f 1)}"
   _id=$(jail::get_next_id)
   _path=${jailer_dir}/${_name}
-  _default_image=$(jailer image use 2>/dev/null)
+  _default_image=$(jail::image::use 2>/dev/null)
+  _default_nettype=$(jail::network::use 2>/dev/null)
 
-  if [ -z "${_version}" ]; then
+  [ "${_name}" = "help" ] && help::create
+  _output="/etc/jail.conf.d/${_name}.conf"
+  [ "${_dry_run}" = "yes" ] && _output="/dev/stdout"
+
+  if [ -z "${_version}" -a -z "${_snap}" ]; then
     if [ ! -z "${_default_image}" ]; then
       _version=${_default_image}
     else
@@ -354,18 +414,24 @@ jail::create(){
     util::err "${_name} already exists"
   fi
   if [ ! -d ${jailer_dir}/image/${_version} ]; then
-    util::err "${_version} does not exist, try imageping first"
+    util::err "${_version} does not exist, try \`image fetch ${_version}\` first?"
   fi
 
-  # Check the VNET type, can be none, eb or ng
-  [ "${_vnet}" = "ng" ] && util::err "Netgraph is current not supported, please try 'eb' or 'none' (default)"
-
+  # Check the VNET (default) type, can be inherit, new, eb or ng
+  if [ -z "${_vnet}" ]; then
+    if [ -n "${_default_nettype}" ]; then
+      _vnet=${_default_nettype}
+    else
+      _vnet="inherit"
+    fi
+  fi
+  [ "${_vnet}" = "ng" ] && util::err "Netgraph is current not supported."
   # First, we check for Gateway and Netmask; If not set, we get it from the bridge
   if [ "${_vnet}" = "eb" ];
   then
     [ -z "${_addr}" ]    && _addr="dhcp"
     [ -z "${_bridge}" ]  && _bridge="bridge0"
-    [ -z "${_gw}" ]      && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2}')
+    [ -z "${_gw}" ]      && _gw=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $2; exit;}')
     [ -z "${_netmask}" ] && _netmask=$(ifconfig -f inet:dotted ${_bridge} | awk '/inet/ {print $4; exit;}')
   fi
 
@@ -380,16 +446,22 @@ EOF
   fi
 
   case "${_vnet}" in
-    eb) set_eb_vars ;;
-    ng) set_ng_vars ;;
-    *)  set_os_vars ;;
+    eb)       set_eb_vars ;;
+    ng)       set_ng_vars ;;
+    new)      set_new_vars ;;
+    inherit)  set_inherit_vars ;;
+    *)     util::err "-t ${_vnet}?? Wait, is there a network type we're not aware of?" ;;
   esac
 
   # Creation begins ...
-  printf "Creating ${_name}: "
+  if [ "${_dry_run}" = "yes" ]; then
+    printf "${COLOUR_SET_B}jail.conf file =>${COLOUR_END}\n"
+  else
+    printf "Creating ${_name}: "
+  fi
 
   # Generate the configuration file
-  cat << EOF > /etc/jail.conf.d/${_name}.conf
+  cat << EOF > $_output
 # vim: set syntax=sh:
 exec.clean;
 allow.raw_sockets;
@@ -401,7 +473,6 @@ ${_devfsvars}
   \$bridge         = "${_bridge}";
   \$domain         = "${_domain}";
 ${_netvars}
-  exec.start     += "/bin/sh /etc/rc";
 
   host.hostname   = "\${name}.\${domain}";
   path            = "${_path}";
@@ -410,53 +481,105 @@ ${_netvars}
 }
 EOF
 
-  # ZFS send / recv
+  # ZFS
   if [ ! -z ${_snap} ]; then
-    (zfs send ${JAILER_ZFS_DATASET}/${_snap} |
-     zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    _zfscmd="
+  (zfs send ${JAILER_ZFS_DATASET}/${_snap} |
+   zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    "
   else
-    (zfs send ${JAILER_ZFS_DATASET}/image/${_version}@base |
-     zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    _zfscmd="
+  (zfs send ${JAILER_ZFS_DATASET}/image/${_version}@base |
+   zfs recv ${JAILER_ZFS_DATASET}/${_name})
+    "
+  fi
+  if [  "${_dry_run}" != "yes" ]; then
+    eval "${_zfscmd}"
+  else
+    printf "${COLOUR_SET_B}ZFS commands =>${COLOUR_END}\n"
+    echo "${_zfscmd}"
   fi
 
   # Set the resolver
   if [ ! -z ${_resolver} ]; then
-    echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+    _resolvcmd=$(cat <<EOF
+  echo "nameserver ${_resolver}" > "${_path}/etc/resolv.conf"
+EOF
+)
   else
-    cp /etc/resolv.conf "${_path}/etc/resolv.conf"
+    _resolvcmd=$(cat <<EOF
+  cp /etc/resolv.conf ${_path}/etc/resolv.conf
+EOF
+)
+  fi
+  if [ "${_dry_run}" != "yes" ]; then
+    eval "${_resolvcmd}"
+  else
+    printf "${COLOUR_SET_B}Resolver commands =>${COLOUR_END}\n"
+    echo "${_resolvcmd}"
   fi
 
   # Set MAC address if using dhcp
   if [ "${_addr}" = "dhcp" -a "${_vnet}" = "eb" ]; then
-    echo "ifconfig epair${_id}b ether ${_macaddr}" > "${_path}/etc/start_if.epair${_id}b"
-    sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="SYNCDHCP" > /dev/null 2>&1
+    _netcmd=$(cat <<EOF
+  echo "ifconfig epair${_id}b ether ${_macaddr}" > ${_path}/etc/start_if.epair${_id}b
+  sysrc -q -f ${_path}/etc/rc.conf ifconfig_epair${_id}b="SYNCDHCP"
+EOF
+)
   # Otherwise use the provided address
   elif [ "${_vnet}" = "eb" ]; then
+    _netcmd=$(cat <<EOF
+  sysrc -q -f ${_path}/etc/rc.conf ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
+  sysrc -q -f ${_path}/etc/rc.conf defaultrouter="${_gw}"
+EOF
+)
+  fi
+  if [ "${_dry_run}" != "yes" ]; then
     > /dev/null 2>&1 \
-      sysrc -q -f "${_path}/etc/rc.conf" ifconfig_epair${_id}b="inet ${_addr} netmask ${_netmask} up"
-    > /dev/null 2>&1 \
-      sysrc -q -f "${_path}/etc/rc.conf" defaultrouter="${_gw}"
+    eval "${_netcmd}"
+  else
+    printf "${COLOUR_SET_B}Network setup commands =>${COLOUR_END}\n"
+    echo "${_netcmd}"
   fi
 
   # Set silent if required
   if [ ! -z ${_silent} ]; then
-    sysrc -q -f "${_path}"/etc/rc.conf cron_enable="NO" \
-      sendmail_enable="NONE" syslogd_flags="-ss"        \
-      > /dev/null 2>&1
+    _sysrcncmd=$(cat <<EOF
+  sysrc -q -f ${_path}/etc/rc.conf cron_enable="NO"
+EOF
+)
+  fi
+  # ALWAYS disable sendmail and secure syslogd
+  _sysrccmd=$(cat <<EOF
+  sysrc -q -f ${_path}/etc/rc.conf sendmail_enable="NONE" syslogd_flags="-ss"
+EOF
+)
+  if [ "${_dry_run}" != "yes" ]; then
+    > /dev/null 2>&1 \
+    eval "${_sysrcncmd}"
+    > /dev/null 2>&1 \
+    eval "${_sysrccmd}"
+  else
+    printf "${COLOUR_SET_B}Post-Installation =>${COLOUR_END}\n"
+    echo "${_sysrccmd}"
+    echo "${_sysrcncmd}"
   fi
 
-  sysrc -q jail_list+="${_name}" > /dev/null 2>&1
-  if !(jail::start ${_name} >/dev/null 2>&1); then
-    jail::exception::create
+
+
+  if [ "${_dry_run}" != "yes" ]; then
+    >/dev/null 2>&1 \
+    jail::start ${_name}
+    >/dev/null 2>&1 \
+    jls -j ${_name} || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && jail::exception::create )
+    printf "${COLOUR_SET_G}Done!${COLOUR_END}\n"
   fi
-  [ $? -eq 0 ] && printf "${COLOUR_SET_G}Done!${COLOUR_END}\n" \
-               || (printf "${COLOUR_SET_R}Failed!${COLOUR_END}\n" && return 1)
 }
 
 jail::console() {
   local _name="$1"
   jail::checkexists ${_name}
-  jexec -l ${_name} /bin/tcsh
+  jexec -l ${_name}
 }
 
 jail::edit() {
@@ -465,6 +588,9 @@ jail::edit() {
   [ $# -lt 1 ] && help::edit
 
   local _name="$1"
+
+  [ ${_name} = "help" ] && help::edit
+
   local _file="/etc/jail.conf.d/${_name}.conf"
   if [ ! -e ${_file} ]; then
     util::err "Configuration file for ${_name} does not exist"
