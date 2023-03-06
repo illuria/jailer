@@ -1,3 +1,5 @@
+![](https://notes.bsd.am/Jailer_images/i/jailer_avatar_github.png)
+
 # Jailer
 
 **NOTE**: This README is just a complete guide. We'd like your help to write manual pages :)
