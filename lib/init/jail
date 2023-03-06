@@ -27,6 +27,13 @@ extra_commands="config console status"
 : ${jail_jls:=/usr/sbin/jls}
 : ${jail_conf_dir:=/etc/jail.conf.d}
 
+if ! type startmsg ; then
+  startmsg() {
+    echo "$@"
+  }
+fi
+
+
 need_dad_wait=
 
 # extract_var jv name param num defval
