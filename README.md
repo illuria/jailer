@@ -36,7 +36,7 @@ zpool create zroot /usr/local/disk0.img
 
 > ### Custom Jail Service file
 >
-> At the moment we use a custom `rc.d/jail` file, which is sent to FreeBSD as [**D38826: Fix multiple rc.d/jail and jail.conf.d issues**](https://reviews.freebsd.org/D38826). Once it's merged, we wont patch `rc.d/jail` anymore (unless we do more changes). `jailer init` will handle the patches.
+> At the moment we use a custom `rc.d/jail` file, which is sent to FreeBSD as [**D38826: Fix multiple rc.d/jail and jail.conf.d issues**](https://reviews.freebsd.org/D38826). Once it's merged, we won't patch `rc.d/jail` anymore (unless we do more changes). `jailer init` will handle the patches.
 
 Once the environment meets the basic requirements, Jailer initialization is required. all you need to do is the following:
 
