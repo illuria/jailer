@@ -326,6 +326,7 @@ jail::network(){
 set_eb_vars(){
   _netvars=$(cat <<EOF
   vnet;
+  allow.raw_sockets;
   vnet.interface = "epair\${id}b";
 
   exec.prestart   = "ifconfig epair\${id} create up";
@@ -339,6 +340,8 @@ set_eb_vars(){
   exec.poststop   = "ifconfig \${bridge} deletem epair\${id}a";
   exec.poststop  += "ifconfig epair\${id}a destroy";
 
+  mount.devfs;
+
 EOF
 )
 }
@@ -347,10 +350,15 @@ set_new_vars(){
   [ -z "${_bridge}" ] && util::err "When using -t new, an interface should be assigned with -b"
   [ -z "${_addr}" ]   && net::get_avail_addr "${_bridge}"
   _netvars=$(cat <<EOF
+
+  allow.raw_sockets;
   interface       = \${bridge};
   ip4.addr        = ${_addr};
   exec.start      = "/bin/sh /etc/rc";
   exec.stop       = "/bin/sh /etc/rc.shutdown jail";
+
+  mount.devfs;
+
 EOF
 )
 }
@@ -358,8 +366,12 @@ EOF
 set_inherit_vars(){
   _netvars=$(cat <<EOF
   ip4             = "inherit";
+  allow.raw_sockets;
   exec.start      = "/bin/sh /etc/rc";
   exec.stop       = "/bin/sh /etc/rc.shutdown jail";
+
+  mount.devfs;
+
 EOF
 )
 }
@@ -464,8 +476,6 @@ EOF
   cat << EOF > $_output
 # vim: set syntax=sh:
 exec.clean;
-allow.raw_sockets;
-mount.devfs;
 
 ${_name} {
   \$id             = "${_id}";
