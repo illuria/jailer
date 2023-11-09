@@ -270,8 +270,6 @@ init::init(){
   local _dataset _initialised _mpoint _nodef _rcval _zcmd _zpool _zpool_no
   local _yes
 
-  # XXX: It needs to be improved!
-  # Check if jailer is already initialised
   ${_initialised:=false} # Assume it is not
   _rcval=$(sysrc -nq jailer_dir)
   [ ${#_rcval} -ne 0 ] && _initialised=true
@@ -290,13 +288,13 @@ init::init(){
 
   _subcommand="${1}"
 
-  init::zfs::parse
-  [ "${_subcommand}" = "zfs"    ] && init::zfs       && exit
-  [ "${_subcommand}" = "help"   ] && help::init      && exit
-  [ "${_subcommand}" = "info"   ] && init::info      && exit
-  [ "${_subcommand}" = "dhcp"   ] && init::dhcp      && exit
-  [ "${_subcommand}" = "patch"  ] && init::patch     && exit
-  [ "${_subcommand}" = "bridge" ] && init::bridge    && exit
+  [ ! "${_initialised}" = "true"   ] && init::zfs::parse
+  [   "${_subcommand}"  = "zfs"    ] && init::zfs       && exit
+  [   "${_subcommand}"  = "help"   ] && help::init      && exit
+  [   "${_subcommand}"  = "info"   ] && init::info      && exit
+  [   "${_subcommand}"  = "dhcp"   ] && init::dhcp      && exit
+  [   "${_subcommand}"  = "patch"  ] && init::patch     && exit
+  [   "${_subcommand}"  = "bridge" ] && init::bridge    && exit
 
 
   # If jailer is initialised beforehand, inform the user and exit

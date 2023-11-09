@@ -1,5 +1,6 @@
 #!/bin/sh
 
+#TODO redo this whole file in a more FreeBSD-style
 CMD_VALID_LIST="create,console,deinit,destroy,edit,help,image,info,init,list,network,nat,rdr,snap,snapshot,start,startall,stop,stopall,usage,version"
 
 cmd::parse_init(){

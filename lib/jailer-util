@@ -48,7 +48,7 @@ EOT
 }
 
 util::version(){
-  printf "v%s\nr%s\n" ${VERSION} ${VERSION_INT}
+  printf "v%s\n" ${VERSION}
 }
 
 

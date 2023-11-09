@@ -1,7 +1,6 @@
 #!/bin/sh
 
-VERSION=0.1.1
-VERSION_INT=00110
+VERSION="0.1.2.a0"
 VERSION_BSD=$(uname -K)
 UNAME_m=$(uname -m)
 UNAME_p=$(uname -p)
